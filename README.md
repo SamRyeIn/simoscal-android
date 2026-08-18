@@ -1,10 +1,23 @@
-# `Code/android` — Quick Edit v1 Android app (V0 parity gate + V7 shell + V8 editors)
+# simoscal Quick Edit — Android app (V0 parity gate + V7 shell + V8 editors)
 
 Implements **V0**, **V7**, and **V8** of
-`Docs/plans/2026-07-21-002-feat-simoscal-quickedit-v1-plan.md`: first prove the
+`docs/2026-07-21-002-feat-simoscal-quickedit-v1-plan.md`: first prove the
 Python engine runs under Chaquopy with **byte-for-byte parity** against host
 Python, then build the Compose shell that drives it. Nothing here flashes an
 ECU, and nothing here does bin math in Kotlin.
+
+## This repository
+
+This app was split out of the `simoscal` library repo on 2026-08-18, ahead of
+opening `simoscal` to beta testers. It keeps a **cross-repo dependency**: the
+Kotlin side talks to the Python engine over `simoscal/bridge.py`, which lives in
+`SamRyeIn/simoscal` and is not vendored here. To build, check `simoscal` out
+alongside this repo and point the Chaquopy `pip` install at it.
+
+`docs/` holds the design record that moved with the app: the requirements
+brainstorm, the two plans, the implementation-details log, and a full copy of the
+`simoscal` code-review log as it stood at the split (the library half of that log
+also continues in the `simoscal` repo).
 
 ## Status
 
@@ -673,9 +686,9 @@ This is the sequence that actually worked on a physical tablet (2026-08-15).
 `parity/push_fixtures_and_compare.sh` wraps the first and last steps.
 
 ```bash
-cd Code/android/parity && ./push_fixtures_and_compare.sh push   # all four fixtures
+cd parity && ./push_fixtures_and_compare.sh push   # all four fixtures
 
-cd Code/android
+cd ..
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 ./gradlew :engine:assembleDebug :engine:assembleDebugAndroidTest
@@ -741,7 +754,7 @@ build here is not a failing test, and it is certainly not a parity result. Use
 
 ## Build path (what actually worked)
 
-Generate the `gradlew` wrapper once via **Android Studio** (open `Code/android`,
+Generate the `gradlew` wrapper once via **Android Studio** (open this repo root,
 choose **Use Android Studio's SDK** at the prompt, let the sync finish, dismiss
 any "update AGP / migrate Gradle" nudges). From then on the CLI works:
 

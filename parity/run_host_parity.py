@@ -8,10 +8,10 @@ instrumentation harness produces the device half by importing the very same
 Usage::
 
     # Write the host golden
-    python android/parity/run_host_parity.py --out android/parity/golden_host.json
+    python parity/run_host_parity.py --out parity/golden_host.json
 
     # Compare a report pulled off the device
-    python android/parity/run_host_parity.py --compare device_report.json
+    python parity/run_host_parity.py --compare device_report.json
 
 Run this under the **same Python minor version Chaquopy embeds** (3.13). A 3.14
 host and a 3.13 device disagreeing tells you nothing about Chaquopy, so the

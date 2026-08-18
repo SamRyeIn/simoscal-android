@@ -19,19 +19,19 @@ import java.io.File
  * This does not decide parity by itself — it produces the device half of the
  * comparison and asserts the properties that are checkable without the host
  * report. The verdict comes from pulling `v0_device_report.json` and running
- * `android/parity/run_host_parity.py --compare` against it, because parity is a
+ * `parity/run_host_parity.py --compare` against it, because parity is a
  * statement about two runs and only the host side holds the other one.
  *
  * Fixtures are the real SC8S50 files, all four committed to this repo, and they
  * are pushed to the device before the run — see
- * `android/parity/push_fixtures_and_compare.sh push`, which is the one place
+ * `parity/push_fixtures_and_compare.sh push`, which is the one place
  * their source paths are written down:
  *
  * ```
  * adb push Code/xdf/SC8S50.V1.0.xdf /data/local/tmp/v0/
  * adb push Code/bin/5G0906259L__0002.bin /data/local/tmp/v0/
- * adb push "Code/android/parity/fixtures/S50 Switch Patch.29.33.V2.xdf" /data/local/tmp/v0/
- * adb push Code/android/parity/fixtures/CB_HSL_SP2933_5G0906259L_0002_BasicsGuide_R04.bin /data/local/tmp/v0/
+ * adb push "parity/fixtures/S50 Switch Patch.29.33.V2.xdf" /data/local/tmp/v0/
+ * adb push parity/fixtures/CB_HSL_SP2933_5G0906259L_0002_BasicsGuide_R04.bin /data/local/tmp/v0/
  * ```
  *
  * Absent fixtures **skip** rather than fail, matching the repo-wide convention

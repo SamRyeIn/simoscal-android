@@ -3,7 +3,7 @@
 The V0 go/no-go asks a single question: **does the already-trusted ``simoscal``
 engine produce byte-for-byte and field-for-field identical results when embedded
 in an Android app via Chaquopy?** This module is the answer's only source. Both
-the host runner (``android/parity/run_host_parity.py``) and the Android
+the host runner (``parity/run_host_parity.py``) and the Android
 instrumentation harness import *this file* and call :func:`run_parity`, so the
 two sides cannot drift by running different code.
 

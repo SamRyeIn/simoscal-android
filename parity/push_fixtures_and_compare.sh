@@ -15,10 +15,22 @@
 # failure here is what keeps that from being reachable by accident.
 set -euo pipefail
 
-CODE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-FIXTURES="$CODE/android/parity/fixtures"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+FIXTURES="$REPO/parity/fixtures"
 DEVICE_DIR="/data/local/tmp/v0"
-PY313="${PY313:-$CODE/.venv313/bin/python}"
+
+# Two of the four fixtures (the stock XDF and the stock bin) live in the
+# simoscal library repo, not here — this app was split out of it. Point
+# SIMOSCAL_DIR at that checkout; the default assumes it sits alongside.
+SIMOSCAL="${SIMOSCAL_DIR:-$REPO/../simoscal}"
+if [ ! -d "$SIMOSCAL" ]; then
+  echo "error: simoscal checkout not found at $SIMOSCAL." >&2
+  echo "       Set SIMOSCAL_DIR=/path/to/simoscal." >&2
+  exit 2
+fi
+SIMOSCAL="$(cd "$SIMOSCAL" && pwd)"
+
+PY313="${PY313:-$SIMOSCAL/.venv313/bin/python}"
 
 # adb, in order of preference: an explicit override, the SDK pointed at by
 # ANDROID_HOME/ANDROID_SDK_ROOT, then whatever is on PATH. The previous
@@ -38,8 +50,8 @@ fi
 
 # The exact filenames V0ParityTest looks for in $DEVICE_DIR. Do not rename.
 FIXTURE_PATHS=(
-  "$CODE/xdf/SC8S50.V1.0.xdf"
-  "$CODE/bin/5G0906259L__0002.bin"
+  "$SIMOSCAL/xdf/SC8S50.V1.0.xdf"
+  "$SIMOSCAL/bin/5G0906259L__0002.bin"
   "$FIXTURES/S50 Switch Patch.29.33.V2.xdf"
   "$FIXTURES/CB_HSL_SP2933_5G0906259L_0002_BasicsGuide_R04.bin"
 )
@@ -62,7 +74,7 @@ case "${1:-}" in
     echo "OK: all ${#FIXTURE_PATHS[@]} fixtures pushed to $DEVICE_DIR"
     ;;
   compare)
-    OUT="${OUT:-$CODE/android/parity/v0_device_report.json}"
+    OUT="${OUT:-$REPO/parity/v0_device_report.json}"
     # The test writes to targetContext's external files dir. On an application
     # module that is the app package; on a self-instrumenting library it is the
     # .test package. Try both so this works regardless.
@@ -76,7 +88,7 @@ case "${1:-}" in
       grep -n '"skipped"' "$OUT" >&2
       exit 1
     fi
-    "$PY313" "$CODE/android/parity/run_host_parity.py" --compare "$OUT"
+    "$PY313" "$REPO/parity/run_host_parity.py" --compare "$OUT"
     ;;
   *)
     echo "usage: $0 {push|compare}" >&2

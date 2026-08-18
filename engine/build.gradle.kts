@@ -108,11 +108,19 @@ chaquopy {
             // build merely because a newer compatible wheel was published.
             install("numpy==1.26.2")
 
-            // Installs simoscal from the repo working tree, so the device runs
-            // *this* checkout rather than a published copy. Core deps are
-            // numpy-only by design (see Code/pyproject.toml), which is what
-            // keeps matplotlib and openpyxl out of the mobile closure entirely.
-            install("../..")
+            // Installs simoscal from a working tree, so the device runs a
+            // *checkout* rather than a published copy. Core deps are numpy-only
+            // by design (see simoscal's pyproject.toml), which is what keeps
+            // matplotlib and openpyxl out of the mobile closure entirely.
+            //
+            // simoscal lives in its own repo (SamRyeIn/simoscal) since the
+            // 2026-08-18 split; the default assumes it is checked out alongside
+            // this one. Override with -Psimoscal.dir=... or SIMOSCAL_DIR.
+            install(
+                (project.findProperty("simoscal.dir") as String?)
+                    ?: System.getenv("SIMOSCAL_DIR")
+                    ?: "../../simoscal"
+            )
         }
     }
 
