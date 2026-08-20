@@ -2,12 +2,10 @@
 
 **Last updated:** 2026-08-20
 
-> **Before publishing:** two placeholders below must be filled in — the
-> developer name and a contact address. They are deliberately left blank rather
-> than guessed, because a privacy policy is a public commitment made in a real
-> person's name, and Play requires the contact route in it to actually work.
-> Publish this at a stable public URL (GitHub Pages off this repo is enough) and
-> give that URL to the Play Console.
+> **Before publishing:** publish this at a stable public URL (GitHub Pages off
+> this repo is enough) and give that URL to the Play Console. Keep the contact
+> address below monitored — Play treats an unreachable contact route as a policy
+> problem, not an oversight.
 
 ## Summary
 
@@ -81,11 +79,31 @@ Material changes to this policy will be reflected here with a new "last updated"
 date. Because the no-collection claim is enforced by a build gate, a change to
 it would require a change to the app's source, which is public.
 
+## Who publishes this app
+
+The app is published by the **simoscal project**, an individual open-source
+project. It is not a company, has no employees, and sells nothing.
+
+No physical address appears in this policy, and none is needed for it: nothing
+is collected, so there is no data controller to serve notice on and no records
+request to route. What is required is a contact route that works, and that is
+below.
+
 ## Contact
 
-Developer: _[NAME — fill in before publishing]_
+Questions about this policy, or about the app: <simoscal.tuning@gmail.com>
 
-Questions about this policy: _[CONTACT EMAIL — fill in before publishing]_
+Public issue tracker (no account details required to read, a GitHub account to
+post): <https://github.com/SamRyeIn/simoscal-android/issues>
 
 Source code: <https://github.com/SamRyeIn/simoscal-android> and
 <https://github.com/SamRyeIn/simoscal>
+
+> **Note on the Play listing.** This document is not the only place Google asks
+> who you are. The Play Console requires identity verification, and for a
+> *personal* developer account it publishes the developer's name and physical
+> address on the store listing itself — which this policy's wording cannot avoid.
+> An organization account shows the organization's details instead but requires a
+> D-U-N-S number, and therefore an actual registered entity. Decide which account
+> type you want **before** submitting; the choice is awkward to change later and
+> it, not this file, is what determines whether a home address ends up public.
