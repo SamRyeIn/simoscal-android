@@ -43,8 +43,6 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
 
     // ----------------------------------------------------------------- inputs
 
-    fun onModeChanged(mode: Mode) = _state.update { it.copy(mode = mode) }
-
     /** Show or hide the table grid's value shading. Presentation only — no edit. */
     fun onHeatmapChanged(enabled: Boolean) = _state.update { it.copy(heatmap = enabled) }
 
@@ -369,6 +367,20 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     fun onBoostPointTyped(index: Int, psi: Double) =
         _state.update { it.copy(boost = it.boost.withTypedPoint(index, psi)) }
 
+    fun onBoostPointSelected(index: Int) =
+        _state.update { it.copy(boost = it.boost.selectingPoint(index)) }
+
+    /** Walk the stepper's selection along the rpm axis: -1 back, +1 on. */
+    fun onBoostSelectionStepped(delta: Int) =
+        _state.update { it.copy(boost = it.boost.steppingSelection(delta)) }
+
+    fun onBoostNudgeStepChanged(psi: Double) =
+        _state.update { it.copy(boost = it.boost.withNudgeStep(psi)) }
+
+    /** One press of minus (-1) or plus (+1) on the selected breakpoint. */
+    fun onBoostNudged(direction: Int) =
+        _state.update { it.copy(boost = it.boost.nudgingSelection(direction)) }
+
     fun onBoostFlatCap(psi: Double) = _state.update { it.copy(boost = it.boost.withFlatCap(psi)) }
 
     fun onBoostSmooth() = _state.update { it.copy(boost = it.boost.smoothed()) }
@@ -471,7 +483,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
-     * Re-breakpoint the rpm axis shared by all five slots (Advanced).
+     * Re-breakpoint the rpm axis shared by all five slots.
      *
      * The model is re-read rather than patched locally afterwards, because moving
      * the axis re-interpolates the base ceiling onto it — and that interpolation

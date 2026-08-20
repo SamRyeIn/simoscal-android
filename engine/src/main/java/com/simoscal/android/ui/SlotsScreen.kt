@@ -68,7 +68,6 @@ fun SlotsScreen(viewModel: EditorViewModel) {
         SessionProvenanceCard(
             binName = state.bin?.displayName,
             shortHash = state.bin?.shortHash,
-            advanced = state.mode == com.simoscal.android.Mode.ADVANCED,
         )
 
         if (!slots.loaded) {

@@ -5,12 +5,9 @@ package com.simoscal.android
  *
  * Deliberately free of Android and of the bridge: every safety-relevant rule
  * the UI obeys ("no session before preflight passes", "no export before a
- * verified build", "Advanced never unlocks anything") is a property of this
- * file and is tested on the JVM without a device.
+ * verified build") is a property of this file and is tested on the JVM without
+ * a device.
  */
-
-/** Which controls are visible. Never which are *permitted* — see [EditorUiState]. */
-enum class Mode { SIMPLE, ADVANCED }
 
 /** Workspace destinations, available only once a session is open. */
 enum class Destination { TABLES, BOOST, SLOTS, BUILD }
@@ -84,12 +81,11 @@ data class UserFacingError(val code: String, val message: String, val advanced: 
 enum class DirtyDraft { BOOST, TABLE }
 
 data class EditorUiState(
-    val mode: Mode = Mode.SIMPLE,
     /**
      * Whether the table grid shades cells by value.
      *
      * On by default, because the shape of a map is the thing hardest to read out
-     * of bare numerals. Kept here beside [mode] rather than local to the grid so
+     * of bare numerals. Kept on the screen model rather than local to the grid so
      * it survives closing one table and opening the next — a person who turned
      * the colours off did so because they dislike them, not because of the table
      * they happened to be looking at.

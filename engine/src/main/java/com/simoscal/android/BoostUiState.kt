@@ -15,6 +15,20 @@ import kotlin.math.abs
  * JVM. The view model adds only the bridge calls.
  */
 
+/**
+ * The psi increments the stepper offers, smallest first.
+ *
+ * Five, not a free-text field: the point of the stepper is that a change is made
+ * without looking away from the curve, and a fixed ladder of round numbers is
+ * something a thumb can pick blind. 0.1 is finer than the ECU's own storage
+ * quantum is worth arguing about, 2 is a deliberate shove; between them sits
+ * every ordinary adjustment.
+ */
+val BOOST_NUDGE_STEPS: List<Double> = listOf(0.1, 0.2, 0.5, 1.0, 2.0)
+
+/** Where the step ladder starts: big enough to see on the plot, small enough to be safe. */
+val DEFAULT_BOOST_NUDGE_STEP: Double = 0.5
+
 /** What the engine actually encoded for a committed slot edit. */
 data class BoostEditReceipt(
     val slot: Int,
@@ -35,6 +49,25 @@ data class BoostUiState(
     val lastEdit: BoostEditReceipt? = null,
     /** A transient inline message — a refused entry, a blocked slot switch. */
     val notice: String? = null,
+    /**
+     * Which breakpoint the stepper acts on, as an index into the rpm axis.
+     *
+     * Held on state rather than in the composable so one thing owns "which
+     * breakpoint are we on": the canvas marks it, the readout names it, the
+     * plus/minus buttons move it, and a rotation or a walk to another screen and
+     * back must not quietly move it somewhere else. The rpm axis is shared by
+     * all five slots, so it deliberately survives a slot switch too — comparing
+     * the same rpm across slots is most of what this screen is for.
+     */
+    val selectedIndex: Int = 0,
+    /**
+     * How far one press of plus or minus moves the selected breakpoint, in psi.
+     *
+     * Kept here for the same reason [EditorUiState.heatmap] is kept there: it is
+     * how a person has decided to work, not a property of the curve in front of
+     * them, so it should not reset because they looked at another slot.
+     */
+    val nudgeStepPsi: Double = DEFAULT_BOOST_NUDGE_STEP,
 ) {
 
     /** The committed curve for [activeSlot], as the engine last reported it. */
@@ -56,6 +89,14 @@ data class BoostUiState(
     val canApply: Boolean
         get() = model != null && dirty
 
+    /** The rpm of the selected breakpoint, or null before a model is loaded. */
+    val selectedRpm: Double?
+        get() = model?.rpmAxis?.getOrNull(selectedIndex)
+
+    /** The draft psi at the selected breakpoint, or null when there is no draft. */
+    val selectedPsi: Double?
+        get() = draft.getOrNull(selectedIndex)
+
     /** Breakpoints of the *draft* the base ceiling would swallow. */
     val draftCappedByBase: List<Int>
         get() {
@@ -76,7 +117,58 @@ fun BoostUiState.withModel(loaded: BoostCurveModel): BoostUiState {
         loading = false,
         unavailable = null,
         notice = null,
+        // A model with a shorter axis must not leave the selection pointing off
+        // the end of it — every stepper control reads this index.
+        selectedIndex = selectedIndex.coerceIn(0, (loaded.rpmAxis.size - 1).coerceAtLeast(0)),
     )
+}
+
+/**
+ * Point the stepper at one breakpoint. Selection only — nothing is edited.
+ *
+ * Out-of-range indices are ignored rather than clamped: they can only come from
+ * a stale gesture against an axis that has since changed length, and quietly
+ * selecting the nearest surviving breakpoint would mean the next press of plus
+ * moved a different one than the finger asked for.
+ */
+fun BoostUiState.selectingPoint(index: Int): BoostUiState =
+    if (index in draft.indices || index in (model?.rpmAxis?.indices ?: IntRange.EMPTY)) {
+        copy(selectedIndex = index)
+    } else {
+        this
+    }
+
+/**
+ * Walk the selection along the axis, wrapping at both ends.
+ *
+ * Wrapping rather than stopping because this is a ring of twelve breakpoints
+ * being cycled with one thumb, not a list being scrolled: running off the top
+ * end and having to drag all the way back is a worse surprise than arriving at
+ * 3000 rpm, which the readout and the marked point on the plot both announce.
+ */
+fun BoostUiState.steppingSelection(delta: Int): BoostUiState {
+    val size = model?.rpmAxis?.size ?: return this
+    if (size <= 0) return this
+    return copy(selectedIndex = ((selectedIndex + delta) % size + size) % size)
+}
+
+/** Choose the psi one press of plus or minus moves. Presentation only — no edit. */
+fun BoostUiState.withNudgeStep(psi: Double): BoostUiState = copy(nudgeStepPsi = psi)
+
+/**
+ * Move the selected breakpoint one step, up ([direction] +1) or down (-1).
+ *
+ * Routed through [withTypedPoint] on purpose. A press of plus is a stated
+ * number — "half a psi more than that" — not a fingertip sliding across a plot,
+ * so it gets the typed rules: validated against the refusal ceiling and the zero
+ * floor, and *refused with a reason* rather than clamped. Someone leaning on the
+ * button at the top of the range must be told the ceiling stopped them, not
+ * watch the number sit still with no explanation.
+ */
+fun BoostUiState.nudgingSelection(direction: Int): BoostUiState {
+    val index = selectedIndex
+    val from = draft.getOrNull(index) ?: return this
+    return withTypedPoint(index, snapToPsiStep(from + direction * nudgeStepPsi))
 }
 
 /**

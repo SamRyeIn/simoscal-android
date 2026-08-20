@@ -144,4 +144,94 @@ class BoostUiStateTest {
         assertFalse(mangled.dirty)
         assertFalse(mangled.canApply)
     }
+
+    // ----------------------------------------------------------------- stepper
+
+    @Test
+    fun `stepping the selection cycles both ways round the axis`() {
+        val state = loaded()
+        assertEquals(0, state.selectedIndex)
+        assertEquals(1, state.steppingSelection(1).selectedIndex)
+        // Off the front end lands on the last breakpoint, not on -1.
+        assertEquals(11, state.steppingSelection(-1).selectedIndex)
+        // And off the back end lands on the first.
+        assertEquals(0, state.copy(selectedIndex = 11).steppingSelection(1).selectedIndex)
+    }
+
+    @Test
+    fun `selecting a breakpoint edits nothing`() {
+        val state = loaded().selectingPoint(5)
+        assertEquals(5, state.selectedIndex)
+        assertFalse(state.dirty)
+        assertEquals(model.curve(1)!!.psi, state.draft)
+    }
+
+    @Test
+    fun `a nudge moves the selected breakpoint by exactly the chosen step`() {
+        val state = loaded().selectingPoint(4).withNudgeStep(0.5).nudgingSelection(1)
+        // Slot 1 sits at 9.0 everywhere in this fixture.
+        assertEquals(9.5, state.draft[4], 1e-9)
+        // Only the selected one moved.
+        assertEquals(9.0, state.draft[3], 1e-9)
+        assertTrue(state.dirty)
+        assertNull(state.notice)
+        assertEquals(9.0, state.nudgingSelection(-1).draft[4], 1e-9)
+    }
+
+    @Test
+    fun `every offered step is reachable and is applied as given`() {
+        BOOST_NUDGE_STEPS.forEach { step ->
+            val state = loaded().withNudgeStep(step).nudgingSelection(1)
+            assertEquals("step $step", 9.0 + step, state.draft[0], 1e-9)
+        }
+    }
+
+    @Test
+    fun `a nudge into the ceiling is refused, not clamped`() {
+        // 17.99 is one hundredth under this fixture's 18.0 refusal ceiling, so a
+        // step of 0.1 asks for 18.09 — over it.
+        val edge = loaded().withDraggedPoint(0, 17.99).withNudgeStep(0.1)
+        val attempted = edge.nudgingSelection(1)
+        assertEquals(17.99, attempted.draft[0], 1e-9)
+        assertNotNull(attempted.notice)
+        assertTrue(attempted.notice!!.contains("base ceiling"))
+    }
+
+    @Test
+    fun `a nudge below zero is refused, not floored`() {
+        val low = loaded().withDraggedPoint(0, 0.2).withNudgeStep(0.5)
+        val attempted = low.nudgingSelection(-1)
+        assertEquals(0.2, attempted.draft[0], 1e-9)
+        assertNotNull(attempted.notice)
+        assertTrue(attempted.notice!!.contains("negative"))
+    }
+
+    @Test
+    fun `a nudge lands on the psi grid rather than carrying the residue`() {
+        // What a committed cap looks like after a round trip through stored hPa.
+        val offGrid = loaded().copy(draft = loaded().draft.toMutableList().also { it[2] = 9.0007 })
+        val stepped = offGrid.selectingPoint(2).withNudgeStep(0.1).nudgingSelection(1)
+        assertEquals(9.10, stepped.draft[2], 1e-9)
+        // And from there each press is exactly the step.
+        assertEquals(9.20, stepped.nudgingSelection(1).draft[2], 1e-9)
+    }
+
+    @Test
+    fun `the selection survives a slot switch but never points off the axis`() {
+        val moved = loaded().selectingPoint(9)
+        assertEquals(9, moved.selectingSlot(3).selectedIndex)
+        // A model with a shorter axis pulls the selection back in bounds.
+        val shorter = model.copy(
+            rpmAxis = model.rpmAxis.take(4),
+            slots = model.slots.map { it.copy(psi = it.psi.take(4)) },
+            baseCeilingPsi = model.baseCeilingPsi.take(4),
+        )
+        assertEquals(3, moved.withModel(shorter).selectedIndex)
+    }
+
+    @Test
+    fun `the chosen step is not disturbed by editing`() {
+        val state = loaded().withNudgeStep(2.0).nudgingSelection(1).selectingSlot(1).discardingDraft()
+        assertEquals(2.0, state.nudgeStepPsi, 1e-9)
+    }
 }

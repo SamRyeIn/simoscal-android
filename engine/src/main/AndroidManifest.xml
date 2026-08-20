@@ -21,9 +21,20 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Simoscal">
 
+        <!--
+          Rotation is handled in Compose, not by tearing the activity down.
+          `BoostScreen` reads the orientation and re-lays itself out — plot filling
+          the screen sideways, scrolling column upright — and the composition
+          carries the open editor, the scroll position, and anything typed but not
+          yet applied straight across the turn. Without this the activity is
+          recreated on every rotation, which is a full rebuild of the UI to reach
+          the same picture. Nothing here weakens a gate: every rule lives in
+          EditorUiState on the ViewModel, which survived recreation anyway.
+        -->
         <activity
             android:name="com.simoscal.android.MainActivity"
             android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

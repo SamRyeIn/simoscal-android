@@ -1,5 +1,6 @@
 package com.simoscal.android.ui
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,12 +23,14 @@ import androidx.compose.material3.SelectableChipColors
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -220,8 +223,23 @@ fun PanelTitle(text: String, tone: PanelTone = PanelTone.Neutral, modifier: Modi
 
 /** Dim supporting text — the video's caption line under a plot. */
 @Composable
-fun Caption(text: String, modifier: Modifier = Modifier, color: Color = PromoPalette.TextDim) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = color, modifier = modifier)
+fun Caption(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = PromoPalette.TextDim,
+    // Unbounded by default. A caption that must not change the height of what
+    // sits above it — the landscape boost status line — caps itself and takes
+    // an ellipsis rather than pushing the plot around as the draft changes.
+    maxLines: Int = Int.MAX_VALUE,
+) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = color,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+    )
 }
 
 /**
@@ -293,9 +311,9 @@ fun PromoOutlinedButton(
 /**
  * Selected chips take the accent, not Material's secondary container.
  *
- * Slot selection and the Simple/Advanced toggle are the two things on screen that
- * say *which thing you are about to edit*, so they get the colour the rest of the
- * app reserves for the live one.
+ * Slot selection and the table grid's colour switch are the things on screen
+ * that say *which thing you are about to edit*, so they get the colour the rest
+ * of the app reserves for the live one.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -311,3 +329,19 @@ fun promoAssistChipColors(): ChipColors = AssistChipDefaults.assistChipColors(
     containerColor = PromoPalette.BgAlt,
     labelColor = PromoPalette.TextDim,
 )
+
+// ---------------------------------------------------------------- orientation
+
+/**
+ * Whether the screen is currently wider than it is tall.
+ *
+ * One helper rather than a `LocalConfiguration` read per screen: rotating is a
+ * layout decision several places make and they have to agree about it, since
+ * the shell gives back the top bar in landscape precisely so the boost editor
+ * can spend that height on the plot. Read through `LocalConfiguration` so it
+ * recomposes on rotation — the activity is not recreated for a configuration
+ * change it does not declare, but the composition is.
+ */
+@Composable
+internal fun isLandscape(): Boolean =
+    LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE

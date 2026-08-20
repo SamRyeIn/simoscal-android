@@ -210,53 +210,6 @@ class EditorStateTest {
         assertTrue(session.copy(switchPatchXdf = patch).destinationEnabled(Destination.BOOST))
     }
 
-    // -------------------------------------------------------------------- mode
-
-    /**
-     * Advanced reveals detail; it must never unlock an action.
-     *
-     * Written as a sweep over every interesting state rather than one example,
-     * because the failure this guards against is someone later adding a *new*
-     * gate that quietly consults `mode`.
-     */
-    @Test
-    fun `advanced mode changes no gate anywhere in the state space`() {
-        val bases = listOf(
-            EditorUiState(),
-            EditorUiState(bin = bin),
-            EditorUiState(bin = bin, xdf = xdf),
-            EditorUiState(bin = bin, xdf = xdf, preflight = PreflightState.Running),
-            EditorUiState(bin = bin, xdf = xdf, preflight = PreflightState.Blocked("no", listOf("r"))),
-            openSession(),
-            openSession().copy(switchPatchXdf = patch),
-            openSession().copy(build = BuildState.Running),
-            openSession().copy(build = BuildState.Failed("no", listOf("r"))),
-            openSession().copy(build = verified),
-            openSession().copy(busy = true),
-        )
-
-        bases.forEach { base ->
-            val simple = base.copy(mode = Mode.SIMPLE)
-            val advanced = base.copy(mode = Mode.ADVANCED)
-            val label = "state=$base"
-
-            assertEquals("$label canRunPreflight", simple.canRunPreflight, advanced.canRunPreflight)
-            assertEquals("$label canOpenSession", simple.canOpenSession, advanced.canOpenSession)
-            assertEquals("$label canBuild", simple.canBuild, advanced.canBuild)
-            assertEquals("$label exportVisible", simple.exportVisible, advanced.exportVisible)
-            assertEquals("$label sessionOpen", simple.sessionOpen, advanced.sessionOpen)
-            assertEquals("$label blocker", simple.blocker, advanced.blocker)
-            assertEquals("$label sharePath", simple.verifiedSharePath, advanced.verifiedSharePath)
-            Destination.values().forEach { destination ->
-                assertEquals(
-                    "$label $destination",
-                    simple.destinationEnabled(destination),
-                    advanced.destinationEnabled(destination),
-                )
-            }
-        }
-    }
-
     // ------------------------------------------------------------ dirty drafts
 
     /**

@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,7 +46,6 @@ import com.simoscal.android.CellRef
 import com.simoscal.android.CHANGE_EPSILON
 import com.simoscal.android.HeatColor
 import com.simoscal.android.HeatScale
-import com.simoscal.android.Mode
 import com.simoscal.android.displayExact
 import com.simoscal.android.formatSigned
 import com.simoscal.android.EditorViewModel
@@ -71,7 +71,6 @@ import kotlin.math.abs
 @Composable
 fun TablesScreen(viewModel: EditorViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val advanced = state.mode == Mode.ADVANCED
     val tables = state.tables
 
     LaunchedEffect(state.sessionId) {
@@ -86,14 +85,13 @@ fun TablesScreen(viewModel: EditorViewModel) {
             summaries = tables.visibleCatalog,
             binName = state.bin?.displayName,
             shortHash = state.bin?.shortHash,
-            advanced = advanced,
             onQueryChanged = viewModel::onTableQueryChanged,
             onOpen = viewModel::openTable,
         )
         return
     }
 
-    TableEditor(viewModel = viewModel, advanced = advanced)
+    TableEditor(viewModel = viewModel)
 }
 
 @Composable
@@ -103,7 +101,6 @@ private fun TableBrowser(
     summaries: List<TableSummary>,
     binName: String?,
     shortHash: String?,
-    advanced: Boolean,
     onQueryChanged: (String) -> Unit,
     onOpen: (TableSummary) -> Unit,
 ) {
@@ -115,7 +112,7 @@ private fun TableBrowser(
     ) {
         ScreenHeader(kicker = "Every table, in physical units", title = "Tables")
 
-        SessionProvenanceCard(binName = binName, shortHash = shortHash, advanced = advanced)
+        SessionProvenanceCard(binName = binName, shortHash = shortHash)
 
         OutlinedTextField(
             value = query,
@@ -158,7 +155,7 @@ private fun TableBrowser(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TableEditor(viewModel: EditorViewModel, advanced: Boolean) {
+private fun TableEditor(viewModel: EditorViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val tables = state.tables
     val detail = tables.detail ?: return
@@ -166,7 +163,9 @@ private fun TableEditor(viewModel: EditorViewModel, advanced: Boolean) {
 
     var editingCell by remember { mutableStateOf<CellRef?>(null) }
     var batch by remember { mutableStateOf<BatchOperation?>(null) }
-    var intent by remember { mutableStateOf("") }
+    // Saveable: it holds typed prose, and a rotation must not eat the reason
+    // someone wrote for the edit they are about to apply.
+    var intent by rememberSaveable { mutableStateOf("") }
 
     // One precision for every cell of this table, drawn from the proposal *and*
     // what it replaces: a cell shows its old value underneath, and the two have
@@ -190,7 +189,7 @@ private fun TableEditor(viewModel: EditorViewModel, advanced: Boolean) {
         ) {
             PromoOutlinedButton(onClick = viewModel::onTableClosed) { Text("Back") }
             Box(modifier = Modifier.weight(1f))
-            // Same FilterChip idiom as the Simple/Advanced toggle in the top bar.
+            // Presentation only: shading the grid changes nothing in the bin.
             FilterChip(
                 selected = state.heatmap,
                 onClick = { viewModel.onHeatmapChanged(!state.heatmap) },
@@ -280,18 +279,16 @@ private fun TableEditor(viewModel: EditorViewModel, advanced: Boolean) {
                     Text(if (tables.dirty) "Apply" else "No change")
                 }
                 PromoOutlinedButton(onClick = viewModel::onTableDiscard, enabled = tables.dirty) { Text("Discard") }
-                if (advanced) {
-                    // Restore goes to the engine, not to a local copy: only the
-                    // journal knows what this table held when the session opened.
-                    // Disabled while the grid is dirty — it would overwrite the
-                    // staged proposal with the session-start values.
-                    PromoOutlinedButton(
-                        onClick = {
-                            viewModel.restoreTable("restore ${summary.idAndDescription} to its session-start values")
-                        },
-                        enabled = state.canMutateSession,
-                    ) { Text("Restore") }
-                }
+                // Restore goes to the engine, not to a local copy: only the
+                // journal knows what this table held when the session opened.
+                // Disabled while the grid is dirty — it would overwrite the
+                // staged proposal with the session-start values.
+                PromoOutlinedButton(
+                    onClick = {
+                        viewModel.restoreTable("restore ${summary.idAndDescription} to its session-start values")
+                    },
+                    enabled = state.canMutateSession,
+                ) { Text("Restore") }
             }
         }
 
@@ -732,11 +729,11 @@ private fun ChangeSummaryCard(viewModel: EditorViewModel) {
  * actually working against.
  */
 @Composable
-internal fun SessionProvenanceCard(binName: String?, shortHash: String?, advanced: Boolean) {
+internal fun SessionProvenanceCard(binName: String?, shortHash: String?) {
     Panel(padding = 12.dp) {
         Kicker("Session bin", color = PromoPalette.TextFaint)
         Identifier(binName ?: "Unknown")
-        if (advanced && shortHash != null) {
+        if (shortHash != null) {
             Text(
                 "SHA-256 $shortHash",
                 style = PromoType.figureSmall,

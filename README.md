@@ -57,7 +57,7 @@ UI code is `com.simoscal.android`; the V0/V6 engine plumbing stays in
 | `RecoveryStore.kt`      | DataStore pointer wrapping the engine's own session record.       |
 | `ShareBin.kt`           | FileProvider grant; takes a `Verified` build and nothing else.    |
 | `BoostCurve.kt`         | Boost read model + the two ceilings and every clamp. Pure.        |
-| `BoostUiState.kt`       | Staged boost draft and its transitions. Pure.                     |
+| `BoostUiState.kt`       | Staged boost draft, the stepper's selection, and every transition. Pure. |
 | `BoostPlot.kt`          | Canvas coordinate math, Compose-free so it is JVM-testable.       |
 | `TablesUiState.kt`      | Catalog, table draft, selection, and batch operations. Pure.      |
 | `ui/`                   | Compose shell, navigation, and the four screens.                  |
@@ -72,13 +72,30 @@ UI code is `com.simoscal.android`; the V0/V6 engine plumbing stays in
   undo, or redo invalidates a completed build (`invalidatingBuild()`), so a
   Share button can never point at a candidate bin that predates the current
   journal.
-- **`Simple | Advanced` changes visible controls only.** No `canX` value reads
-  `Mode`; a test sweeps the state space to keep it that way.
 - **A gate that did not run is not a pass.** `GateResult.ran` is rendered as its
   own third state.
 - **No permissions.** Enforced by `verifyDebugNoPermissions`, which reads the
   *merged* manifest — so a permission contributed by a library fails the build
   too — and is wired into `check`.
+- **A stepped edit is a typed edit.** Plus and minus route through the same
+  validation a typed value gets (`nudgingSelection` → `withTypedPoint`), so a
+  press that would cross the refusal ceiling or go below zero is *refused with
+  its reason* rather than clamped onto the limit. A drag is the one input that
+  clamps, because a fingertip is an approximation and a keystroke is not.
+- **One set of controls, all shown.** There is no Simple/Advanced switch: file
+  hashes, gate detail lines, the engine's error detail, Restore, and the shared
+  rpm-axis editor are on screen for everyone. A control worth hiding from a
+  person editing a real ECU bin is one that should not ship.
+
+### Rotating is a layout decision, not a mode
+
+Landscape is the boost editor's own view: the shell drops the top bar (it holds
+only the wordmark), and `BoostScreen` swaps its scrolling column for a
+non-scrolling one where the canvas takes `weight(1f)` and the slot chips, the
+intent line, one status line, and the button row take the rest. Nothing about
+what is *permitted* changes with orientation — the same `canX` rules gate the
+same actions — and the controls landscape leaves out (copy-from, the receipt,
+the shared-axis editor) are all still there when the device is upright.
 
 ### The look is the promo video's, from one palette
 

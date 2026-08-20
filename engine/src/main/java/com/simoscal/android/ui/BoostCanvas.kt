@@ -3,7 +3,6 @@ package com.simoscal.android.ui
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -22,7 +21,6 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.simoscal.android.BoostCurveModel
 import com.simoscal.android.BoostPlotGeometry
@@ -64,6 +62,11 @@ internal fun slotColor(slot: Int): Color = SlotColors[slot] ?: PromoPalette.Text
  * effect; the dashed line is the scalar value the engine outright refuses at.
  * The shaded band between the ceiling and the top of the plot is the region
  * where an edit is accepted but changes nothing.
+ *
+ * The caller owns the height and must give one — a fixed height upright, the
+ * leftover of the column in landscape. The plot is the thing a person drags a
+ * boost number out of, so how tall it is drawn is a decision for the screen
+ * that knows how much room there is, not a constant in here.
  */
 @OptIn(ExperimentalTextApi::class)
 @Composable
@@ -71,6 +74,7 @@ fun BoostCanvas(
     model: BoostCurveModel,
     activeSlot: Int,
     draft: List<Double>,
+    selectedIndex: Int,
     modifier: Modifier = Modifier,
     onDragPoint: (index: Int, psi: Double) -> Unit,
     onTapPoint: (index: Int) -> Unit,
@@ -82,7 +86,6 @@ fun BoostCanvas(
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(260.dp)
             // Two separate gesture detectors rather than one: a tap opens numeric
             // entry for a breakpoint and a drag moves it, and Compose will not
             // let one `awaitPointerEventScope` own both cleanly.
@@ -141,6 +144,21 @@ fun BoostCanvas(
             )
         }
 
+        // The stepper's breakpoint, marked before the curves so the guide sits
+        // under them. Without it the plus and minus buttons would be moving a
+        // number the plot gives no way to find — the rpm in the readout and the
+        // point that moves have to be visibly the same one.
+        model.rpmAxis.getOrNull(selectedIndex)?.let { rpm ->
+            val px = scale.x(geometry, rpm)
+            drawLine(
+                color = PromoPalette.Accent.copy(alpha = 0.45f),
+                start = Offset(px, geometry.top),
+                end = Offset(px, geometry.bottom),
+                strokeWidth = 1.5f,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 8f)),
+            )
+        }
+
         // Ghosted slots first, active slot last so it is never overdrawn.
         val labels = mutableListOf<Triple<Int, Offset, Color>>()
         model.slots.sortedBy { it.slot == activeSlot }.forEach { curve ->
@@ -158,9 +176,22 @@ fun BoostCanvas(
             // still reads as the live one on a screen in daylight.
             drawPolyline(points, color, if (active) 4.5f else 2f)
             if (active) {
-                points.forEach { point ->
+                points.forEachIndexed { index, point ->
                     drawCircle(PromoPalette.Bg, radius = 7f, center = point)
                     drawCircle(color, radius = 7f, center = point, style = Stroke(width = 2.5f))
+                    // The selected one is filled and haloed rather than merely
+                    // bigger: on a plot of twelve identical rings, "which is
+                    // the one about to move" has to survive a glance in
+                    // daylight.
+                    if (index == selectedIndex) {
+                        drawCircle(color, radius = 6f, center = point)
+                        drawCircle(
+                            PromoPalette.Accent,
+                            radius = 13f,
+                            center = point,
+                            style = Stroke(width = 2f),
+                        )
+                    }
                 }
             }
             points.lastOrNull()?.let { labels += Triple(curve.slot, it, color) }

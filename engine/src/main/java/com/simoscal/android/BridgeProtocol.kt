@@ -37,7 +37,10 @@ sealed interface BridgeOutcome {
 
     /**
      * The call was rejected. [message] is plain-language and safe to show;
-     * [advanced] is the detail shown only in Advanced mode.
+     * [advanced] is the engine's own detail line, shown under it. The name is
+     * the wire key `error.advanced` that `bridge.py` sends, kept as-is so the
+     * two halves of the protocol read the same; it is no longer gated on
+     * anything in the UI.
      */
     data class Failed(
         val code: String,

@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -13,7 +14,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -35,7 +35,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,7 +47,6 @@ import androidx.navigation.compose.rememberNavController
 import com.simoscal.engine.R
 import com.simoscal.android.Destination
 import com.simoscal.android.InputKind
-import com.simoscal.android.Mode
 import com.simoscal.android.PreflightState
 import com.simoscal.android.EditorViewModel
 
@@ -68,6 +66,7 @@ fun SimoscalApp(viewModel: EditorViewModel) {
     val recoverable by viewModel.recoverable.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
+    val landscape = isLandscape()
 
     // Hoisted to the shell because the blocker dialog is drawn above every route
     // and needs its own way to reach the picker — the one on the import screen is
@@ -83,12 +82,23 @@ fun SimoscalApp(viewModel: EditorViewModel) {
     // than, say, a button's own onClick) means recovery and a fresh
     // openSession() land in the same place, and a session that closes for any
     // reason always drops back to a screen where re-import is possible.
+    //
+    // It only moves someone who is on the *wrong side* of that line. This effect
+    // re-runs on every fresh composition, not only when the session actually
+    // opens — after process death, and after any configuration change the
+    // activity is recreated for — and an unconditional `navigate("tables")`
+    // there threw away the restored back stack: rotating the device on the Boost
+    // editor landed back on Tables, which is precisely the screen a person
+    // rotates to get *away* from.
     LaunchedEffect(state.sessionOpen) {
+        val route = navController.currentBackStackEntry?.destination?.route
         if (state.sessionOpen) {
-            navController.navigate("tables") {
-                popUpTo("import") { inclusive = false }
+            if (route == null || route == "import") {
+                navController.navigate("tables") {
+                    popUpTo("import") { inclusive = false }
+                }
             }
-        } else {
+        } else if (route != "import") {
             navController.navigate("import") {
                 popUpTo(0)
             }
@@ -98,7 +108,11 @@ fun SimoscalApp(viewModel: EditorViewModel) {
     val error = state.error
     LaunchedEffect(error) {
         if (error != null) {
-            val message = if (state.mode == Mode.ADVANCED && error.advanced.isNotBlank()) {
+            // The engine's own detail line is always appended when it sent one.
+            // It used to be Advanced-only; hiding it never made the failure less
+            // real, only harder to report, and "op=open_session" under the
+            // sentence is what turns a shrug into a bug report.
+            val message = if (error.advanced.isNotBlank()) {
                 "${error.message}\n${error.advanced}"
             } else {
                 error.message
@@ -111,23 +125,26 @@ fun SimoscalApp(viewModel: EditorViewModel) {
     Scaffold(
         containerColor = PromoPalette.Bg,
         topBar = {
-            // The bar and the hairline under it are one unit: the video separates
-            // its chrome from its content with a rule and never with a shadow, and
-            // Material's own elevation overlay would tint the bar away from the
-            // app's ground the moment content scrolled beneath it.
-            Column {
-                TopAppBar(
-                    title = { Wordmark(fontSize = 20.sp) },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = PromoPalette.Bg,
-                        titleContentColor = PromoPalette.Text,
-                        actionIconContentColor = PromoPalette.TextDim,
-                    ),
-                    actions = {
-                        ModeToggle(mode = state.mode, onModeChanged = viewModel::onModeChanged)
-                    },
-                )
-                HairRule()
+            // Held back in landscape, where vertical pixels are the scarce ones
+            // and this bar carries nothing but the wordmark — the boost canvas is
+            // drawn from the height the chrome gives back, and the navigation bar
+            // below is the half that has actual controls on it.
+            if (!landscape) {
+                // The bar and the hairline under it are one unit: the video separates
+                // its chrome from its content with a rule and never with a shadow, and
+                // Material's own elevation overlay would tint the bar away from the
+                // app's ground the moment content scrolled beneath it.
+                Column {
+                    TopAppBar(
+                        title = { Wordmark(fontSize = 20.sp) },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = PromoPalette.Bg,
+                            titleContentColor = PromoPalette.Text,
+                            actionIconContentColor = PromoPalette.TextDim,
+                        ),
+                    )
+                    HairRule()
+                }
             }
         },
         bottomBar = {
@@ -177,7 +194,7 @@ fun SimoscalApp(viewModel: EditorViewModel) {
             }
         },
     ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {
+        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             // Busy always shows, on every screen, so a person can never mistake a
             // slow bridge call for the app doing nothing.
             if (state.busy) {
@@ -187,7 +204,16 @@ fun SimoscalApp(viewModel: EditorViewModel) {
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            NavHost(navController = navController, startDestination = "import") {
+            // Weighted, so a screen that fills its height fills what is *left*
+            // rather than the whole body: the busy bar appears and disappears
+            // under it, and without this the landscape boost editor's bottom
+            // button row would be pushed off the screen edge by exactly the
+            // height of that bar for as long as a call was in flight.
+            NavHost(
+                navController = navController,
+                startDestination = "import",
+                modifier = Modifier.weight(1f),
+            ) {
                 composable("import") { ImportScreen(viewModel = viewModel, recoverable = recoverable) }
                 composable("tables") { TablesScreen(viewModel = viewModel) }
                 composable("boost") { BoostScreen(viewModel = viewModel) }
@@ -241,26 +267,6 @@ private fun destinationItems(): List<DestinationItem> = listOf(
 )
 
 /**
- * Simple/Advanced changes what is *visible*, never what is *permitted*.
- *
- * This composable only calls [EditorViewModel.onModeChanged], which flips a
- * display flag in state — every `canX`/`enabled` value in the app is derived
- * from other fields and never reads [Mode] at all, so there is no code path by
- * which flipping this toggle could unlock an action Simple forbade.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ModeToggle(mode: Mode, onModeChanged: (Mode) -> Unit) {
-    FilterChip(
-        selected = mode == Mode.ADVANCED,
-        onClick = { onModeChanged(if (mode == Mode.ADVANCED) Mode.SIMPLE else Mode.ADVANCED) },
-        label = { Text(if (mode == Mode.ADVANCED) "Advanced" else "Simple") },
-        colors = promoFilterChipColors(),
-        modifier = Modifier.padding(end = 12.dp),
-    )
-}
-
-/**
  * The non-dismissible dead end for a bin that cannot be safely edited.
  *
  * No "continue anyway" exists anywhere in this dialog on purpose: a blocked
@@ -306,3 +312,4 @@ private fun BlockedDialog(
         },
     )
 }
+

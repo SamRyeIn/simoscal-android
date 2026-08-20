@@ -27,7 +27,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.simoscal.engine.R
 import com.simoscal.android.BuildState
 import com.simoscal.android.GateResult
-import com.simoscal.android.Mode
 import com.simoscal.android.EditorViewModel
 import com.simoscal.android.ShareBin
 
@@ -43,7 +42,6 @@ import com.simoscal.android.ShareBin
 @Composable
 fun BuildScreen(viewModel: EditorViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val advanced = state.mode == Mode.ADVANCED
     val context = LocalContext.current
 
     var revision by rememberSaveable { mutableStateOf("R00") }
@@ -87,7 +85,7 @@ fun BuildScreen(viewModel: EditorViewModel) {
                 FailedCard(build)
             }
             is BuildState.Verified -> {
-                VerifiedCard(build, advanced)
+                VerifiedCard(build)
                 // A share that cannot be set up must report itself, not crash the
                 // app: FileProvider throws if the staged bin ever falls outside
                 // the declared paths, and losing the whole screen would take the
@@ -130,7 +128,7 @@ private fun FailedCard(build: BuildState.Failed) {
 }
 
 @Composable
-private fun VerifiedCard(build: BuildState.Verified, advanced: Boolean) {
+private fun VerifiedCard(build: BuildState.Verified) {
     Panel(tone = PanelTone.Good, spacing = 8.dp) {
         PanelTitle("Verified", tone = PanelTone.Good)
         Text("Revision ${build.revision}")
@@ -151,7 +149,7 @@ private fun VerifiedCard(build: BuildState.Verified, advanced: Boolean) {
 
         HairRule(color = PromoPalette.Good.copy(alpha = 0.3f))
         Kicker("Gates", color = PromoPalette.TextFaint)
-        build.gates.forEach { gate -> GateRow(gate, advanced) }
+        build.gates.forEach { gate -> GateRow(gate) }
     }
 }
 
@@ -164,7 +162,7 @@ private fun VerifiedCard(build: BuildState.Verified, advanced: Boolean) {
  * an unexercised gate for evidence of anything.
  */
 @Composable
-private fun GateRow(gate: GateResult, advanced: Boolean) {
+private fun GateRow(gate: GateResult) {
     // Straight off the palette's own vocabulary: `good` is a check that passed,
     // `danger` is a refusal, and a gate that never ran is faint — it is not a
     // verdict at all and must not be coloured like one.
@@ -181,7 +179,10 @@ private fun GateRow(gate: GateResult, advanced: Boolean) {
             Kicker(label, color = color)
             Text(gate.name, style = MaterialTheme.typography.bodyMedium)
         }
-        if (advanced && gate.detail.isNotBlank()) {
+        // The detail line is what the verdict is *made of* — which bytes, which
+        // checksum, how many tables read back. A verdict without it is a claim
+        // rather than a report, so it is always printed when the gate sent one.
+        if (gate.detail.isNotBlank()) {
             Caption(gate.detail)
         }
     }

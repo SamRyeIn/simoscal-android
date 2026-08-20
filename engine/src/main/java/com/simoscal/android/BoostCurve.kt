@@ -159,7 +159,7 @@ fun BoostCurveModel.rejectTypedPsi(psi: Double): String? = when {
     psi >= refusalCeilingPsi ->
         "${psi.display("%.2f")} psi reaches the base ceiling of " +
             "${refusalCeilingPsi.display("%.2f")} psi. Above it the base " +
-            "`IP_PUT_SP` — Pressure up throttle setpoint table caps the slot " +
+            "IP_PUT_SP — Pressure up throttle setpoint table caps the slot " +
             "instead, so the engine refuses the edit."
     else -> null
 }
@@ -173,9 +173,25 @@ fun BoostCurveModel.rejectTypedPsi(psi: Double): String? = when {
  */
 fun BoostCurveModel.clampDraggedPsi(psi: Double): Double {
     if (psi.isNaN()) return 0.0
-    val snapped = (psi / PSI_STEP).roundToInt() * PSI_STEP
-    return max(0.0, min(maxSettablePsi, snapped))
+    return max(0.0, min(maxSettablePsi, snapToPsiStep(psi)))
 }
+
+/**
+ * Snap to [PSI_STEP], applying no limits at all.
+ *
+ * Split out of [clampDraggedPsi] for the stepper, which needs the grid but not
+ * the clamp: a step that would leave the legal range has to be *refused* and
+ * say so, the way a typed value is, rather than quietly landing on the ceiling
+ * and reporting a number nobody asked for.
+ *
+ * It is also what keeps repeated steps honest. A committed cap arrives as psi
+ * converted back from stored hPa, so it sits a little off the grid — 17.9848
+ * rather than 17.98. Snapping the *result* means the first press lands on the
+ * grid and every press after it moves by exactly the chosen increment, instead
+ * of carrying that residue through the whole session.
+ */
+fun snapToPsiStep(psi: Double): Double =
+    if (psi.isNaN()) 0.0 else (psi / PSI_STEP).roundToInt() * PSI_STEP
 
 /** Replace one breakpoint of [current], clamped as a drag. */
 fun BoostCurveModel.withDraggedPoint(current: List<Double>, index: Int, psi: Double): List<Double> {

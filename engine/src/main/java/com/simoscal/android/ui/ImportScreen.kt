@@ -22,7 +22,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.simoscal.android.ImportedFile
 import com.simoscal.android.InputKind
-import com.simoscal.android.Mode
 import com.simoscal.android.PreflightState
 import com.simoscal.android.EditorViewModel
 import com.simoscal.android.RecoveryPointer
@@ -42,7 +41,6 @@ import java.util.Date
 @Composable
 fun ImportScreen(viewModel: EditorViewModel, recoverable: RecoveryPointer?) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val advanced = state.mode == Mode.ADVANCED
 
     val binPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { viewModel.onFilePicked(it, InputKind.BIN) }
@@ -86,26 +84,23 @@ fun ImportScreen(viewModel: EditorViewModel, recoverable: RecoveryPointer?) {
         InputRow(
             label = "Calibration bin",
             file = state.bin,
-            advanced = advanced,
             onChoose = { binPicker.launch(InputKind.BIN.mimeTypes) },
         )
         InputRow(
             label = "XDF definition",
             file = state.xdf,
-            advanced = advanced,
             onChoose = { xdfPicker.launch(InputKind.XDF.mimeTypes) },
         )
 
-        // Advanced-only: this file only unlocks the Boost destination's extra
-        // switch-patch space, it is never required to run preflight or open a
-        // session, so Simple mode has no reason to show it.
-        if (advanced) {
-            SwitchPatchRow(
-                file = state.switchPatchXdf,
-                onChoose = { switchPatchPicker.launch(InputKind.SWITCH_PATCH_XDF.mimeTypes) },
-                onClear = { viewModel.clearSwitchPatchXdf() },
-            )
-        }
+        // Optional, and labelled as such rather than hidden: it is never needed
+        // to run preflight or open a session, but it is the only way to reach
+        // the Boost and Slots editors, and a person who cannot see the row has
+        // no way to find that out.
+        SwitchPatchRow(
+            file = state.switchPatchXdf,
+            onChoose = { switchPatchPicker.launch(InputKind.SWITCH_PATCH_XDF.mimeTypes) },
+            onClear = { viewModel.clearSwitchPatchXdf() },
+        )
 
         PromoButton(
             onClick = { viewModel.runPreflight() },
@@ -163,7 +158,7 @@ private fun RecoverableCard(pointer: RecoveryPointer, onResume: () -> Unit, onDi
  * so this composable never assumes the other file is already chosen.
  */
 @Composable
-private fun InputRow(label: String, file: ImportedFile?, advanced: Boolean, onChoose: () -> Unit) {
+private fun InputRow(label: String, file: ImportedFile?, onChoose: () -> Unit) {
     Panel {
         // The label is a kicker rather than a heading: it names the slot, and the
         // filename under it is the content — same order the video uses over every
@@ -175,13 +170,14 @@ private fun InputRow(label: String, file: ImportedFile?, advanced: Boolean, onCh
             // glyph is the easiest one on screen to misread.
             Identifier(file.displayName)
             Caption(formatSize(file.sizeBytes))
-            if (advanced) {
-                Text(
-                    "SHA-256 ${file.shortHash}",
-                    style = PromoType.figureSmall,
-                    color = PromoPalette.TextFaint,
-                )
-            }
+            // The hash is shown for every import, not on request: it is how one
+            // bin is told from another bin with the same name, and it is what a
+            // build report is later checked against.
+            Text(
+                "SHA-256 ${file.shortHash}",
+                style = PromoType.figureSmall,
+                color = PromoPalette.TextFaint,
+            )
         } else {
             Caption("No file chosen", color = PromoPalette.TextFaint)
         }
