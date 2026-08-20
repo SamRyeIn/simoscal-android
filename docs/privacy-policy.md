@@ -100,10 +100,19 @@ Source code: <https://github.com/SamRyeIn/simoscal-android> and
 <https://github.com/SamRyeIn/simoscal>
 
 > **Note on the Play listing.** This document is not the only place Google asks
-> who you are. The Play Console requires identity verification, and for a
-> *personal* developer account it publishes the developer's name and physical
-> address on the store listing itself — which this policy's wording cannot avoid.
-> An organization account shows the organization's details instead but requires a
-> D-U-N-S number, and therefore an actual registered entity. Decide which account
-> type you want **before** submitting; the choice is awkward to change later and
-> it, not this file, is what determines whether a home address ends up public.
+> who you are, and the account type decides how much of it becomes public.
+>
+> A **personal** account displays the developer's legal name, the *country* from
+> the legal address, and the developer email. The **full address is published
+> only if the app monetizes** — a free app with no ads and no in-app purchases,
+> which this is, shows country alone.
+>
+> An **organization** account publishes the organization's legal name, **full
+> legal address**, developer email and phone. It also requires a D-U-N-S number,
+> and therefore a registered entity. For a solo project this is the *worse*
+> option for address privacy, not the better one: it publishes a street address
+> that the personal route does not.
+>
+> So the residual public exposure on the personal route is the legal name, not an
+> address. Verify against Play Console's current requirements before submitting —
+> this changes.
