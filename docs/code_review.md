@@ -18,6 +18,13 @@ in place as they are fixed or dismissed.
 - **Verdicts:** `CONFIRMED` = reproduced/proven against the code as written;
   `PLAUSIBLE` = mechanism verified but requires a realistic-but-not-current
   state to trigger.
+- **The 2026-08-20 rename:** findings dated before 2026-08-20 cite Android paths
+  under `com.simoscal.quickedit` and class names beginning `QuickEdit`. Those are
+  the paths as they stood when the finding was written and are left alone. Today
+  the package is `com.simoscal.android`; `QuickEditUiState` → `EditorUiState`,
+  `QuickEditViewModel` → `EditorViewModel`, `QuickEditState.kt` →
+  `EditorState.kt`, `QuickEditApp` → `SimoscalApp`, `QuickEditTheme` →
+  `SimoscalTheme`.
 
 ## Findings index
 

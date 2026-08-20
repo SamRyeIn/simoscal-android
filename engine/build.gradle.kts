@@ -169,7 +169,7 @@ dependencies {
 /**
  * Fails the build if the *merged* manifest declares any permission.
  *
- * Quick Edit never touches the network and never talks to the vehicle: it edits
+ * The app never touches the network and never talks to the vehicle: it edits
  * a file the person picked and hands the result to SimosTools through the share
  * sheet. A permission-free manifest is how that claim is enforced rather than
  * merely documented — and it is checked on the merged manifest, so a permission
@@ -212,7 +212,7 @@ abstract class VerifyNoPermissionsTask : DefaultTask() {
         val unexpected = declared - allowed()
         if (unexpected.isNotEmpty()) {
             throw GradleException(
-                "Quick Edit's merged manifest must declare no permissions, but found:\n" +
+                "The app's merged manifest must declare no permissions, but found:\n" +
                     unexpected.joinToString("\n") { name -> "  - $name" } +
                     "\nIf a permission is genuinely required, that is a design decision " +
                     "for the plan's V7 constraints — not something to add here quietly."

@@ -1,5 +1,9 @@
 # Simoscal Android app — requirements
 
+> **Renamed 2026-08-20.** Where this document says **Quick Edit**, the app is now
+> just the simoscal Android app: repo `simoscal-android`, UI package
+> `com.simoscal.android`. Dated design record, original wording kept.
+
 **Date:** 2026-07-21
 **Status:** Brainstorm complete, ready for `/ce-plan`
 **Owner:** Sam

@@ -7,7 +7,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Future
 
 /**
- * The Android side of Quick Edit's versioned Python bridge.
+ * The Android side of the versioned Python bridge.
  *
  * Kotlin owns lifecycle and scheduling only. Requests and responses stay JSON
  * strings serialized inside Python, so no PyObject, numpy value, traceback, or

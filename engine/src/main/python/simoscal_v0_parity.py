@@ -312,7 +312,7 @@ def _leg_boost_curve(
     """Run one ``slot_curve()`` against a real patched bin, through ``Tune``.
 
     Opened with ``extra_spaces`` and **no** ``patches=``: the bin is already
-    patched, which is exactly how Quick Edit v1 receives it, and it keeps the
+    patched, which is exactly how the Android app receives it, and it keeps the
     BinToolz tree out of the mobile dependency closure.
     """
     from simoscal.tune import SC8S50, Tune

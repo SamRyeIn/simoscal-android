@@ -11,7 +11,7 @@
   the system bars' own icons light, which is what they must be over `promo_bg`.
 -->
 <resources>
-    <style name="Theme.QuickEdit" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.Simoscal" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/promo_bg</item>
         <item name="android:colorBackground">@color/promo_bg</item>
         <item name="android:statusBarColor">@color/promo_bg_alt</item>

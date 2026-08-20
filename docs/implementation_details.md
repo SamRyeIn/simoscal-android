@@ -1,15 +1,27 @@
-# Quick Edit v1 — Implementation Details
+# simoscal for Android — Implementation Details
 
-This is a living implementation record for the private Quick Edit v1 work in
-`Code/`. It explains why the implementation is shaped the way it is, what was
-verified, and what remains intentionally incomplete. Add a new dated entry at
-the end whenever behavior, architecture, safety reasoning, or verification
-status changes. Do not rewrite earlier entries; correct factual errors with a
-dated follow-up entry that names the superseded statement.
+This is a living implementation record for the private Android app. It explains
+why the implementation is shaped the way it is, what was verified, and what
+remains intentionally incomplete. Add a new dated entry at the end whenever
+behavior, architecture, safety reasoning, or verification status changes. Do not
+rewrite earlier entries; correct factual errors with a dated follow-up entry that
+names the superseded statement.
+
+> **Renamed 2026-08-20.** This app was called **Quick Edit** through
+> 2026-08-19, and its UI package was `com.simoscal.quickedit`. Entries dated
+> before the rename say "Quick Edit" and cite paths under that package; they are
+> left as written, because this log does not rewrite history. The mapping:
+> `com.simoscal.quickedit` → `com.simoscal.android`, `QuickEditUiState` →
+> `EditorUiState`, `QuickEditViewModel` → `EditorViewModel`, `QuickEditState.kt`
+> → `EditorState.kt`, `QuickEditApp` → `SimoscalApp`, `QuickEditTheme` →
+> `SimoscalTheme`, `Theme.QuickEdit` → `Theme.Simoscal`. The `applicationId`
+> (`com.simoscal.engine`), the FileProvider authority, the launcher name
+> (`simoscal`), and the `quickedit_recovery` DataStore filename all deliberately
+> did **not** change — see the 2026-08-20 entry.
 
 ## How future agents should use this file
 
-Before changing Quick Edit code:
+Before changing app code:
 
 1. Read `CLAUDE.md`, `README.md`, the active plan in `../Docs/plans/`, and
    `code_review.md`.
@@ -27,7 +39,7 @@ implementation consequence here.
 
 ## Current implementation boundary
 
-Quick Edit v1 is a private, SC8S50-only Android editing tool. It does not flash
+The app is a private, SC8S50-only Android editing tool. It does not flash
 an ECU, communicate with a vehicle, analyze logs on-device, or provide a
 generic write path for arbitrary XDFs. Kotlin owns Android lifecycle, file
 selection, scheduling, and sharing. Python remains authoritative for:
@@ -110,7 +122,7 @@ surface needs. Sharing is available only when the gate outcome is clean,
 checksums are independently verifiable and clean, readback passed, the audit
 ran, and the audit found no unexplained bytes.
 
-The Quick Edit service does not accept caller-supplied extra audit allowances.
+The app's build service does not accept caller-supplied extra audit allowances.
 Allowances come from journaled declarations, legitimate restore-to-source
 responsibility, and stored checksum bytes. This prevents an unjournaled write
 from becoming shareable while remaining invisible in the report.

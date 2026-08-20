@@ -1,5 +1,9 @@
 # Simoscal Android app — implementation plan
 
+> **Renamed 2026-08-20.** Where this document says **Quick Edit**, the app is now
+> just the simoscal Android app: repo `simoscal-android`, UI package
+> `com.simoscal.android`. Dated design record, original wording kept.
+
 Date: 2026-07-21
 Type: feat
 Origin: `Docs/brainstorms/2026-07-21-simoscal-android-app-requirements.md`

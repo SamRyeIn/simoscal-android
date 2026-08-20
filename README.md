@@ -1,7 +1,7 @@
-# simoscal Quick Edit — Android app (V0 parity gate + V7 shell + V8 editors)
+# simoscal for Android (V0 parity gate + V7 shell + V8 editors)
 
 Implements **V0**, **V7**, and **V8** of
-`docs/2026-07-21-002-feat-simoscal-quickedit-v1-plan.md`: first prove the
+`docs/2026-07-21-002-feat-simoscal-android-v1-plan.md`: first prove the
 Python engine runs under Chaquopy with **byte-for-byte parity** against host
 Python, then build the Compose shell that drives it. Nothing here flashes an
 ECU, and nothing here does bin math in Kotlin.
@@ -30,7 +30,7 @@ also continues in the `simoscal` repo).
 | Arm64-emulator parity verdict             | **PASS** — digest match (2026-07-23)          |
 | Physical-arm64 parity verdict             | **PASS** — digest match on a Galaxy Tab A9+ (2026-08-15), re-proven against the arm64-only APK (2026-08-16) |
 | x86_64 parity                             | **N/A — ABI dropped** (2026-08-16). Never proven, so no longer shipped |
-| V7 Compose shell + Quick Edit flow        | Built; host-verifiable half green (see V7)    |
+| V7 Compose shell + the editing flow        | Built; host-verifiable half green (see V7)    |
 | V7 on-device legs (SAF, share, recovery)  | **Green** — full import → preflight → session → edit → build → export run on a Galaxy Tab A9+ (2026-08-15); process-death recovery exercised too. Rotation and low-storage still owed |
 | V8 boost canvas + calibration editors     | Built; pure rules green (see V8)              |
 | V8 on-device legs (drag, screenshots)     | Parity pull done (2026-08-15, see V8); fingertip drag and screenshot tests still owed |
@@ -44,7 +44,7 @@ demote `engine` to a library Chaquopy does not support. Keeping one module also
 leaves the V0 parity evidence (taken against `applicationId com.simoscal.engine`)
 describing the same artifact the UI ships in.
 
-UI code is `com.simoscal.quickedit`; the V0/V6 engine plumbing stays in
+UI code is `com.simoscal.android`; the V0/V6 engine plumbing stays in
 `com.simoscal.engine`.
 
 | File                    | What it is responsible for                                       |
@@ -52,8 +52,8 @@ UI code is `com.simoscal.quickedit`; the V0/V6 engine plumbing stays in
 | `BridgeProtocol.kt`     | Envelope build/parse; version and call-identity checks. Pure.     |
 | `BridgeClient.kt`       | Suspending front door; cancellation never aborts an in-flight op. |
 | `ImportStore.kt`        | SAF URI → app-private content-addressed copy, hashed while streaming. |
-| `QuickEditState.kt`     | Every gate rule, as pure data. Where the safety invariants live.  |
-| `QuickEditViewModel.kt` | Sequences bridge calls; persists recovery after each mutation.    |
+| `EditorState.kt`        | Every gate rule, as pure data. Where the safety invariants live.  |
+| `EditorViewModel.kt`    | Sequences bridge calls; persists recovery after each mutation.    |
 | `RecoveryStore.kt`      | DataStore pointer wrapping the engine's own session record.       |
 | `ShareBin.kt`           | FileProvider grant; takes a `Verified` build and nothing else.    |
 | `BoostCurve.kt`         | Boost read model + the two ceilings and every clamp. Pure.        |
@@ -101,7 +101,7 @@ What that buys, beyond looking of a piece:
 - **One scheme, always dark, no Material You.** `dynamicColorScheme` would repaint
   the app in the device wallpaper's hues, which is exactly wrong here: it would
   make "the engine refused" a different colour on every phone. The light scheme
-  and the `darkTheme` parameter are gone with it — `QuickEditTheme` takes only
+  and the `darkTheme` parameter are gone with it — `SimoscalTheme` takes only
   its content.
 - **Numbers are monospace, everywhere.** `PromoType.identifier` and
   `figureSmall` carry the video's Menlo-set figures across to grid cells, axis
@@ -180,8 +180,15 @@ if projects and revision lineage arrive.
 ```bash
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17
 export ANDROID_HOME="$HOME/Library/Android/sdk"
-./gradlew :engine:testDebugUnitTest :engine:verifyDebugNoPermissions
+./gradlew :engine:testDebugUnitTest :engine:verifyDebugNoPermissions \
+    -Psimoscal.dir=/Users/sam/SimosTools/Code
 ```
+
+JDK 17 is not a preference: 11 fails with `invalid source release: 17`, and
+Android Studio's bundled JDK 21 fails AGP 7.4.2's `JdkImageTransform` in
+`jlink`. `-Psimoscal.dir` is needed because the Chaquopy `pip` install defaults
+to `../../simoscal` and the library actually lives inside the car-tuning repo
+at `SimosTools/Code`; `SIMOSCAL_DIR` in the environment does the same job.
 
 Expect **159 unit tests passing** and a receipt at
 `engine/build/reports/permissions/debug.txt`:
@@ -195,7 +202,7 @@ Expect **159 unit tests passing** and a receipt at
 | `FormattingTest`      | 15    |
 | `ImportNamingTest`    | 9     |
 | `NumpyPinTest`        | 1     |
-| `QuickEditStateTest`  | 24    |
+| `EditorStateTest`     | 24    |
 | `SlotsUiStateTest`    | 12    |
 | `TableHeatmapTest`    | 18    |
 | `TablesUiStateTest`   | 24    |
