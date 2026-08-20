@@ -913,6 +913,31 @@ APK 39 MB debug → 32 MB release; AAB 25 MB; arm64-v8a only; not debuggable; no
 `.bin` or `.xdf` anywhere in the package. The permission gate runs on the
 release variant too (`engine/build/reports/permissions/release.txt`).
 
+### Licensing, and why it is GPL-3.0
+
+The APK embeds the `simoscal` Python library, which is GPL-3.0. Shipping it
+inside a distributed binary makes the binary a conveyed work, so this app takes
+the same licence — a consequence of the dependency, not a preference. `LICENSE`
+is the GPL-3.0 text (byte-identical to simoscal's), and `LICENSE-THIRD-PARTY`
+covers Chaquopy, CPython, NumPy, AndroidX/Compose/Kotlin and org.json.
+
+Anyone who receives the APK is entitled to the corresponding source; both repos
+being public is what satisfies that.
+
+Known inconsistency, in the *other* repo: `simoscal`'s `pyproject.toml` declares
+`license = { text = "Proprietary" }` while its LICENSE file and GitHub both say
+GPL-3.0. The metadata is the thing that is wrong, and it should be corrected
+there before either repo is held up as the source offer.
+
+### Store-listing paperwork
+
+- `docs/privacy-policy.md` — the policy text. Play requires it at a public URL;
+  two placeholders (developer name, contact address) must be filled in first.
+- `docs/play-data-safety.md` — every Data safety answer with the evidence in
+  this repo that makes it true, so it can be re-verified per submission rather
+  than copied forward. Short version: nothing is collected, because there is no
+  network permission to collect it with.
+
 ### This is not yet Play-uploadable
 
 `targetSdk` is still 33, which Play rejects for new apps and updates, and which

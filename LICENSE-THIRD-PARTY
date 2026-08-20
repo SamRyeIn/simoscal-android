@@ -1,0 +1,95 @@
+Third-party notices for the simoscal Android app
+================================================
+
+This app as a whole is licensed under the GNU General Public License v3.0 (see
+LICENSE). It embeds and links the projects below, whose own licences and
+copyright notices continue to apply to that work.
+
+Why the app is GPL-3.0 and not something more permissive: the APK embeds the
+`simoscal` Python library, which is itself GPL-3.0. Shipping that library inside
+a distributed binary makes the binary a conveyed work under the GPL, so the app
+takes the same licence. This is a consequence of the dependency, not a
+preference — see https://github.com/SamRyeIn/simoscal.
+
+Anyone who receives the APK is entitled to the corresponding source. Both repos
+being public is what satisfies that; if this app is ever distributed from a
+store listing, the listing should point at them.
+
+
+-------------------------------------------------------------------------------
+simoscal — the calibration engine
+-------------------------------------------------------------------------------
+
+Project:  https://github.com/SamRyeIn/simoscal
+Licence:  GNU General Public License v3.0
+
+Embedded in the APK by Chaquopy (see engine/build.gradle.kts, the `pip` block).
+simoscal carries its own LICENSE-THIRD-PARTY covering the work it in turn
+incorporates — notably the Simos18 checksum and CRC implementation adapted from
+VW_Flash (BSD 2-Clause). That file travels with the library and is not restated
+here.
+
+
+-------------------------------------------------------------------------------
+Chaquopy — the embedded Python runtime
+-------------------------------------------------------------------------------
+
+Project:  https://chaquo.com/chaquopy/
+Licence:  see https://chaquo.com/chaquopy/license/
+
+Chaquopy is free and open source and is distributed through Maven Central. It
+supplies com.chaquo.python (the Java/JNI bridge kept by engine/proguard-rules.pro)
+and the CPython runtime and native modules shipped under lib/arm64-v8a/ and
+assets/chaquopy/ in the APK.
+
+Read the licence at the URL above before relying on the terms; it is stated
+there authoritatively and should not be paraphrased from memory here.
+
+
+-------------------------------------------------------------------------------
+CPython
+-------------------------------------------------------------------------------
+
+Project:  https://www.python.org/
+Licence:  Python Software Foundation License Version 2
+
+Shipped as libpython3.13.so and the standard-library modules under
+assets/chaquopy/, packaged by Chaquopy.
+
+
+-------------------------------------------------------------------------------
+NumPy
+-------------------------------------------------------------------------------
+
+Project:  https://numpy.org/
+Licence:  BSD 3-Clause
+
+Pinned to numpy==1.26.2 in engine/build.gradle.kts and packaged into the APK as
+part of the Python requirements. It is simoscal's only runtime dependency.
+
+
+-------------------------------------------------------------------------------
+AndroidX, Jetpack Compose, and the Kotlin standard library / coroutines
+-------------------------------------------------------------------------------
+
+Projects: https://developer.android.com/jetpack/androidx
+          https://kotlinlang.org/
+Licence:  Apache License 2.0
+
+Covers androidx.core, androidx.activity, androidx.compose.*, androidx.navigation,
+androidx.lifecycle, androidx.datastore, and org.jetbrains.kotlinx:kotlinx-coroutines.
+Exact versions are declared in engine/build.gradle.kts.
+
+Apache 2.0 is compatible with the GNU General Public License v3.0.
+
+
+-------------------------------------------------------------------------------
+org.json
+-------------------------------------------------------------------------------
+
+The bridge envelope is parsed with org.json, which on a release build is the
+implementation supplied by the Android framework rather than a bundled artifact
+(it does not appear in the APK or in mapping.txt). The org.json:json Maven
+artifact appears in this build as a testImplementation dependency only, so that
+the JVM unit tests exercise a real implementation instead of the stub android.jar
+throws; it is not distributed.
