@@ -768,8 +768,11 @@ dialog sits unanswered — so it looks like a hung install, with no error, until
 whatever timeout kills it. The dialog can easily be on a screen nobody is
 looking at.
 
-The objection is `targetSdk 33`, which is pinned deliberately (see the AGP
-7.4.2 / Gradle 7.6.4 note below). It bites the *test* APK and not the app APK
+The objection was `targetSdk 33`. **This should no longer occur** — targetSdk is
+35 as of 2026-08-20 (see the pin note below) — but the workaround is kept here
+because it was never re-tested against a stock device after the bump, and because
+the same dialog appears for any package Play Protect has not seen before. It bit
+the *test* APK and not the app APK
 only because the app package is usually already installed, making its installs
 *updates*; the block applies to new packages.
 
@@ -780,9 +783,10 @@ adb shell settings delete global verifier_verify_adb_installs  # restore afterwa
 
 Scoped to adb sideloads and nothing else. Only needed once per package: after
 `com.simoscal.engine.test` exists, rebuilds are updates and install normally, so
-put the setting back. **The V0 gate is therefore not runnable on a stock
+put the setting back. **The V0 gate was therefore not runnable on a stock
 consumer device without either this setting or a `targetSdk` bump** — worth
-knowing for a gate whose entire purpose is physical hardware.
+knowing for a gate whose entire purpose is physical hardware. The bump has since
+happened; whether that alone is now sufficient is untested.
 
 ### `connectedAndroidTest` still reports `tests=0`
 
@@ -811,24 +815,59 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"
   -Pandroid.testInstrumentationRunnerArguments.fixtureDir=/data/local/tmp/v0
 ```
 
-### The version pin that matters: pre-8.0 Gradle
+### The version pin that matters: Gradle 8.4, narrowly
 
-**AGP 7.4.2 + Gradle 7.6.4 + compileSdk 33**, pinned in the build files. This is
-deliberate, not stale. Chaquopy 17.0.0's own Python tasks read from the JNI-libs
-and asset directories without declaring dependencies on the AGP tasks that write
-there. **Gradle 8.0 turned that class of undeclared-dependency into a hard build
-failure**; the overlaps are numerous and some are with `installPythonRequirements`'s
-own *descendants* (a spurious directory overlap that no `dependsOn`/`mustRunAfter`
-can fix without a cycle). Gradle **7.6.4** treats the same overlaps as deprecation
-*warnings* and builds through them. Chaquopy 17 supports AGP 7.3–9.2, so 7.4.2 is
-in range, and the *runtime under test* (Python 3.13 + numpy) is fixed by the
-Chaquopy version, unaffected by the AGP/Gradle choice.
+**AGP 8.1.4 + Gradle 8.4 + compileSdk 35**, pinned in the build files. Moved up
+on 2026-08-20 from AGP 7.4.2 + Gradle 7.6.4 + compileSdk 33 to reach the
+`targetSdk` Play requires.
 
-This was arrived at empirically: every Gradle 8.x attempt (9.3.0, 8.11.1) failed
-the validation, and per-edge `dependsOn`/`mustRunAfter`/`doNotTrackState` fixes
-either whack-a-moled or cycled. Public-release tooling is revisited at the Phase 2
-gate (where a Kotlin kernel, if adopted, sidesteps Chaquopy's Gradle plugin
-entirely).
+The old pin's reasoning was that Chaquopy 17.0.0's Python tasks read from the
+JNI-libs and asset directories without declaring dependencies on the AGP tasks
+that write there, and that **Gradle 8.0 turned that class of undeclared
+dependency into a hard build failure**. The first half is still true. The second
+half was measured on Gradle **9.3.0 and 8.11.1** and generalised to "8.0+", which
+turns out to be too broad: **Gradle 8.4 builds through the same edges cleanly** —
+`check` (334 tests across both variants), `assembleRelease` and `bundleRelease`
+all pass, with every `generate*Python*` and `installPythonRequirements` task
+running. Gradle tightened that validation across the 8.x line, so 8.4 sits in a
+window that later 8.x versions close.
+
+So this is a narrow pin. **Do not bump Gradle past 8.4 without re-running the
+Chaquopy Python tasks.** That failure mode is a build error rather than a silent
+one, so it will announce itself — but it will announce itself to whoever bumps
+it. `org.gradle.parallel` and `org.gradle.caching` stay OFF (see
+gradle.properties); that is part of what keeps 8.4 tolerant of these edges.
+
+Staying on AGP 7.4 and only raising compileSdk was tried first and is a dead end:
+aapt2 from AGP 7.4 cannot parse `android-35`'s resource table at all —
+
+```
+aapt2 E LoadedArsc.cpp:94] RES_TABLE_TYPE_TYPE entry offsets overlap actual entry data.
+error: failed to load include path .../platforms/android-35/android.jar
+```
+
+— and `android.suppressUnsupportedCompileSdk` does not help, because this is a
+parse failure rather than a version check.
+
+### targetSdk 35 is behaviour-preserving on purpose
+
+Android 15 stops insetting the window for apps targeting 35: system bars go
+transparent, content draws behind them, and the theme's `statusBarColor` /
+`navigationBarColor` are ignored. This app has **no window-insets handling
+anywhere**, and its landscape layout deliberately drops the top app bar — the one
+component that would have consumed the top inset — so enforcement would put the
+boost canvas and its action row under the system bars.
+
+`res/values-v35/themes.xml` therefore sets
+`android:windowOptOutEdgeToEdgeEnforcement`. The bump exists to satisfy Play's
+minimum, and pairing a compliance change with an unverified layout change would
+smuggle a regression in behind it.
+
+**This is a hold, not a resting place.** The opt-out is deprecated and stops
+working at targetSdk 36 — roughly one annual Play deadline away. Handling
+`WindowInsets` in the Compose shell, and verifying both orientations on the
+tablet, has to happen before that bump. Delete `values-v35/themes.xml` as part of
+that work, not before it.
 
 ### Gradle `connectedAndroidTest` orchestration flake
 
@@ -912,6 +951,51 @@ traces de-obfuscate.
 APK 39 MB debug → 32 MB release; AAB 25 MB; arm64-v8a only; not debuggable; no
 `.bin` or `.xdf` anywhere in the package. The permission gate runs on the
 release variant too (`engine/build/reports/permissions/release.txt`).
+
+### Licensing, and why it is GPL-3.0
+
+The APK embeds the `simoscal` Python library, which is GPL-3.0. Shipping it
+inside a distributed binary makes the binary a conveyed work, so this app takes
+the same licence — a consequence of the dependency, not a preference. `LICENSE`
+is the GPL-3.0 text (byte-identical to simoscal's), and `LICENSE-THIRD-PARTY`
+covers Chaquopy, CPython, NumPy, AndroidX/Compose/Kotlin and org.json.
+
+Anyone who receives the APK is entitled to the corresponding source; both repos
+being public is what satisfies that.
+
+Known inconsistency, in the *other* repo: `simoscal`'s `pyproject.toml` declares
+`license = { text = "Proprietary" }` while its LICENSE file and GitHub both say
+GPL-3.0. The metadata is the thing that is wrong, and it should be corrected
+there before either repo is held up as the source offer.
+
+### Store-listing paperwork
+
+- `docs/privacy-policy.md` — the policy text. Play requires it at a public URL;
+  two placeholders (developer name, contact address) must be filled in first.
+- `docs/play-data-safety.md` — every Data safety answer with the evidence in
+  this repo that makes it true, so it can be re-verified per submission rather
+  than copied forward. Short version: nothing is collected, because there is no
+  network permission to collect it with.
+
+### Play-uploadability
+
+`targetSdk` is 35 as of 2026-08-20, which clears the blocker that made this
+unuploadable. Confirmed on the built artifact rather than in the build file:
+
+```
+$ aapt dump badging engine/build/outputs/apk/release/engine-release.apk
+package: name='com.simoscal.engine' versionCode='1' versionName='0.1.0' ...
+sdkVersion:'26'
+targetSdkVersion:'35'
+native-code: 'arm64-v8a'
+```
+
+Check Play's current minimum before submitting — it rises annually, around
+August, and the value that mattered when this was written may not be the value
+that matters when you upload.
+
+What remains is not build work: a hosted privacy-policy URL, the Data safety
+form, content rating, and the store listing itself. See below.
 
 ### Licensing, and why it is GPL-3.0
 

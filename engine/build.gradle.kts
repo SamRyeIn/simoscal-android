@@ -62,12 +62,12 @@ android {
     // compileSdk 33 pairs with AGP 7.4.2 (see the root build for why the tooling
     // is pinned pre-8.0). It only governs the build; the runtime under test is
     // Python 3.13 + numpy, fixed by the Chaquopy version. minSdk 26 unchanged.
-    compileSdk = 33
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.simoscal.engine"
         minSdk = 26
-        targetSdk = 33
+        targetSdk = 35
         // versionCode must increase with every Play upload and never repeat.
         // versionName was "0.0-v0" — the V0 parity gate it named was passed long
         // ago, and the app has had a full Compose UI since V7.
@@ -163,8 +163,7 @@ android {
         }
     }
 
-    // AGP 7.4 spells this `packagingOptions` (renamed to `packaging` in AGP 8).
-    packagingOptions {
+    packaging {
         resources.excludes += setOf("META-INF/*")
     }
 }

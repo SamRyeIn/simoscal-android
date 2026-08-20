@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 15 (API 35) stops insetting the window for apps that target 35: system
+  bars go transparent and content draws behind them, and the base theme's
+  `statusBarColor` / `navigationBarColor` are ignored outright. This app has no
+  window-insets handling anywhere, and its landscape layout deliberately drops
+  the top app bar — the one component that would have consumed the top inset —
+  so under enforcement the boost canvas and the action row it fought to keep
+  on-screen would sit under the system bars.
+
+  This opts out, which keeps the targetSdk 35 bump behaviour-preserving: the bump
+  exists to satisfy Play's minimum, and pairing it with an unverified UI change
+  would smuggle a layout regression in behind a compliance change.
+
+  It is a hold, not a resting place. The opt-out is deprecated and stops working
+  at targetSdk 36, so the real work — handling WindowInsets in the Compose shell
+  and verifying both orientations on the tablet — has to happen before the next
+  annual bump. Remove this file as part of that, not before.
+-->
+<resources>
+    <style name="Theme.Simoscal" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/promo_bg</item>
+        <item name="android:colorBackground">@color/promo_bg</item>
+        <item name="android:statusBarColor">@color/promo_bg_alt</item>
+        <item name="android:navigationBarColor">@color/promo_bg_alt</item>
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+    </style>
+</resources>
