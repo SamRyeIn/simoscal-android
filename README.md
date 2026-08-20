@@ -852,6 +852,75 @@ against the host golden. Running the test from Android Studio's green ▶ is the
 GUI equivalent and also works. The flake is worth revisiting but did not block the
 gate.
 
+## Release builds
+
+Debug builds are unchanged. The `release` build type adds R8 shrinking and
+requires a signing key, and both of those decisions have a way to bite that is
+worth reading before you use them.
+
+### The keystore never lives in this repo
+
+`keystore.properties` at the repo root (gitignored, alongside `*.jks` /
+`*.keystore`), or the equivalent environment variables:
+
+```bash
+keytool -genkeypair -v -keystore ~/keys/simoscal-upload.jks \
+  -alias simoscal-upload -keyalg RSA -keysize 4096 -validity 10000
+
+SIMOSCAL_STORE_FILE=~/keys/simoscal-upload.jks SIMOSCAL_STORE_PASSWORD=... \
+SIMOSCAL_KEY_ALIAS=simoscal-upload SIMOSCAL_KEY_PASSWORD=... \
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 \
+./gradlew :engine:bundleRelease -Psimoscal.dir=/Users/sam/SimosTools/Code
+```
+
+Two refusals guard this, in the same spirit as the permission gate:
+half-configured signing material throws at configuration time rather than
+falling back, and `assembleRelease` / `bundleRelease` refuse outright when there
+is no material at all. AGP's own default is to emit an *unsigned* release and
+report success, which is exactly the quiet failure this project does not accept.
+A clone with no keystore still configures, builds debug, and runs `check`.
+
+### R8 rules are load-bearing, not boilerplate
+
+`engine/proguard-rules.pro` keeps `com.chaquo.python.**` in full. Chaquopy ships
+as a plain JAR (`chaquopy_java-17.0.0.jar`), **not** an AAR, so it contributes no
+consumer ProGuard rules — nothing keeps it but that file — and its native layer
+resolves those classes from C over JNI, with `Reflector`,
+`PyInvocationHandler`, `DynamicProxy` and `StaticProxy` existing only to proxy
+calls reflectively. R8 sees no Java caller for most of it. Strip it and the
+build still goes green; the interpreter then fails to start on the device, and
+`SimoscalBridge` reports it only as "The embedded calibration engine could not
+start."
+
+What makes this survivable at all is that the bridge crosses into Python by
+*module-name string* and returns JSON — Python never names a Kotlin class — so
+obfuscating the app's own code is safe. That property is worth preserving: if
+Python is ever given a Kotlin class to name, it needs a keep rule the same day.
+
+Verify the rules held by checking that nothing was renamed, rather than assuming:
+
+```bash
+grep -E "^com\.chaquo\.python" engine/build/outputs/mapping/release/mapping.txt \
+  | awk -F' -> ' '$1 != substr($2,1,length($2)-1)'   # must print nothing
+```
+
+Upload `engine/build/outputs/mapping/release/mapping.txt` to Play so crash
+traces de-obfuscate.
+
+### Measured on 2026-08-20
+
+APK 39 MB debug → 32 MB release; AAB 25 MB; arm64-v8a only; not debuggable; no
+`.bin` or `.xdf` anywhere in the package. The permission gate runs on the
+release variant too (`engine/build/reports/permissions/release.txt`).
+
+### This is not yet Play-uploadable
+
+`targetSdk` is still 33, which Play rejects for new apps and updates, and which
+Play Protect already objects to on sideload (see above). Raising it means
+`compileSdk 34+` → AGP 8 → the Chaquopy task-graph failure the root build
+documents. Signing and shrinking were the parts that could be done without
+reopening that; the SDK bump is its own piece of work.
+
 ## Environment / toolchain
 
 Installed on this machine while setting up: `openjdk@17`

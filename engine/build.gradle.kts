@@ -1,3 +1,5 @@
+import java.util.Properties
+
 // Application module (not a library). The engine module holds the Chaquopy
 // runtime and the V0 parity harness; V7 adds the Compose UI on top. Chaquopy is
 // designed and tested against application modules, and the app-module task graph
@@ -7,6 +9,53 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("com.chaquo.python")
 }
+
+// --------------------------------------------------------------------------- //
+// Release signing material
+// --------------------------------------------------------------------------- //
+/**
+ * Where the upload key comes from — never from this repository.
+ *
+ * `keystore.properties` at the repo root (gitignored) or the matching
+ * SIMOSCAL_* environment variables. A keystore committed alongside the source
+ * it signs is not a signing key, it is a shared secret, and Play App Signing
+ * treats a leaked upload key as a key that must be reset.
+ *
+ * All-or-nothing on purpose: a partially configured keystore throws at
+ * configuration time rather than quietly falling back to an unsigned build.
+ * This build's whole idiom is enforcing claims with a task instead of a comment
+ * (see the permission gate below), and "signed" is a claim.
+ */
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) file.inputStream().use { stream -> load(stream) }
+}
+
+fun signingSecret(property: String, environment: String): String? =
+    (keystoreProperties.getProperty(property) ?: System.getenv(environment))
+        ?.takeIf { value -> value.isNotBlank() }
+
+val releaseSigningMaterial: Map<String, String>? =
+    signingSecret("storeFile", "SIMOSCAL_STORE_FILE")?.let { storePath ->
+        val material = mapOf(
+            "storeFile" to storePath,
+            "storePassword" to signingSecret("storePassword", "SIMOSCAL_STORE_PASSWORD"),
+            "keyAlias" to signingSecret("keyAlias", "SIMOSCAL_KEY_ALIAS"),
+            "keyPassword" to signingSecret("keyPassword", "SIMOSCAL_KEY_PASSWORD"),
+        )
+        val missing = material.filterValues { value -> value == null }.keys
+        if (missing.isNotEmpty()) {
+            throw GradleException(
+                "Release signing is half-configured: a store file was given but " +
+                    missing.joinToString(", ") + " " +
+                    (if (missing.size == 1) "is" else "are") + " missing.\n" +
+                    "Set every field in keystore.properties or the SIMOSCAL_STORE_FILE / " +
+                    "SIMOSCAL_STORE_PASSWORD / SIMOSCAL_KEY_ALIAS / SIMOSCAL_KEY_PASSWORD " +
+                    "environment variables."
+            )
+        }
+        material.mapValues { entry -> entry.value!! }
+    }
 
 android {
     namespace = "com.simoscal.engine"
@@ -19,8 +68,11 @@ android {
         applicationId = "com.simoscal.engine"
         minSdk = 26
         targetSdk = 33
+        // versionCode must increase with every Play upload and never repeat.
+        // versionName was "0.0-v0" — the V0 parity gate it named was passed long
+        // ago, and the app has had a full Compose UI since V7.
         versionCode = 1
-        versionName = "0.0-v0"
+        versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
@@ -42,6 +94,44 @@ android {
             // the parity question and must not be done without running the leg on
             // a real x86_64 host.
             abiFilters += listOf("arm64-v8a")
+        }
+    }
+
+    signingConfigs {
+        // Declared only when the material is actually present, so a checkout
+        // without a keystore still configures, builds debug, and runs `check`.
+        releaseSigningMaterial?.let { material ->
+            create("release") {
+                storeFile = file(material.getValue("storeFile"))
+                storePassword = material.getValue("storePassword")
+                keyAlias = material.getValue("keyAlias")
+                keyPassword = material.getValue("keyPassword")
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            // R8 shrinking is ON, and `engine/proguard-rules.pro` is load-bearing:
+            // Chaquopy ships a plain JAR with no consumer rules and reaches its
+            // classes from C over JNI, so without those keeps the interpreter
+            // fails to start on a device while the build stays green. Read that
+            // file before changing anything here.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            signingConfig = signingConfigs.findByName("release")
+        }
+
+        getByName("debug") {
+            // No applicationIdSuffix. The FileProvider authority is derived from
+            // ${applicationId}, and a suffix would also install debug as a second
+            // package — orphaning the session, imported files and recovery state
+            // already on the tablet. Side-by-side installs are not worth that here.
+            isMinifyEnabled = false
         }
     }
 
@@ -247,3 +337,34 @@ androidComponents {
         tasks.named("check").configure { dependsOn(verifyTask) }
     }
 }
+
+// --------------------------------------------------------------------------- //
+// Release signing gate
+// --------------------------------------------------------------------------- //
+/**
+ * Fails a release assemble/bundle that has no signing material.
+ *
+ * AGP's default is to emit an *unsigned* release artifact and carry on, which is
+ * the quiet failure this project does not accept anywhere else: the build looks
+ * successful and the problem only surfaces at upload, or worse, as an APK that
+ * cannot be installed by the person meant to test it. The check is scoped to the
+ * release packaging tasks, so `check`, `assembleDebug` and a fresh clone with no
+ * keystore all behave exactly as before.
+ */
+tasks.matching { task -> task.name == "assembleRelease" || task.name == "bundleRelease" }
+    .configureEach {
+        doFirst {
+            if (releaseSigningMaterial == null) {
+                throw GradleException(
+                    "Refusing to build an unsigned release artifact.\n" +
+                        "Create an upload key and point the build at it:\n" +
+                        "  keytool -genkeypair -v -keystore <path outside this repo>/simoscal-upload.jks \\\n" +
+                        "    -alias simoscal-upload -keyalg RSA -keysize 4096 -validity 10000\n" +
+                        "then put storeFile/storePassword/keyAlias/keyPassword in keystore.properties " +
+                        "at the repo root (gitignored), or set SIMOSCAL_STORE_FILE, " +
+                        "SIMOSCAL_STORE_PASSWORD, SIMOSCAL_KEY_ALIAS and SIMOSCAL_KEY_PASSWORD.\n" +
+                        "Keep the keystore and its passwords out of this repository."
+                )
+            }
+        }
+    }

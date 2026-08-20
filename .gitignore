@@ -11,3 +11,10 @@ parity/device_report*.json
 # Python bytecode
 __pycache__/
 *.py[cod]
+
+# Signing material. The upload key and its passwords never live in the repo:
+# a leaked upload key has to be reset with Google, and a keystore committed
+# next to the source it signs is not a key, it is a shared secret.
+keystore.properties
+*.jks
+*.keystore
