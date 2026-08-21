@@ -18,3 +18,12 @@ __pycache__/
 keystore.properties
 *.jks
 *.keystore
+
+# Calibration data is never redistributed from here. A patched bin belongs to a
+# specific car and the switch-patch XDF is third-party; both were committed
+# under parity/fixtures/ until this repo went public (2026-08-20), and both were
+# purged from history rather than just deleted. Supply them locally and point
+# BOOST_FIXTURE_DIR at them — see parity/push_fixtures_and_compare.sh.
+*.bin
+*.xdf
+parity/fixtures/

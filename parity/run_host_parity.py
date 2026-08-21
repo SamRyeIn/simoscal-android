@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -38,15 +39,27 @@ EXPECTED_PYTHON = (3, 13)
 
 CODE_ROOT = Path(__file__).resolve().parent.parent.parent
 
-#: Boost-leg fixtures, committed beside this script.
+#: Boost-leg fixtures. Supplied locally; **not** committed.
 #:
-#: They used to be read out of the *parent* car-tuning repo (`BinToolz-main/`
-#: and `Tunes/.../BinToolz-patched/`), which works on Sam's machine and nowhere
-#: else — a CI runner checking out `simoscal` alone would find neither, record
-#: the boost leg as SKIPPED, and still print `PARITY: MATCH` because host and
-#: device would then agree at a *different* self-consistent digest. Committing
-#: them makes the seven-leg run reproducible from a checkout alone.
-FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
+#: These were committed here for a while, because reading them out of the
+#: *parent* car-tuning repo (`BinToolz-main/` and `Tunes/.../BinToolz-patched/`)
+#: works on Sam's machine and nowhere else: a runner with this checkout alone
+#: finds neither, records the boost leg as SKIPPED, and still prints
+#: `PARITY: MATCH`, because host and device then agree at a *different*
+#: self-consistent digest.
+#:
+#: They came back out when this repo went public (2026-08-20). One is a patched
+#: calibration for a specific car and the other is third-party, so neither is
+#: ours to redistribute — and that outranks checkout-alone reproducibility.
+#: The hazard the old comment describes is therefore live again, and the
+#: defence against it is unchanged and stated in the README: a MATCH means
+#: nothing until you confirm the report contains zero SKIPPED legs.
+#:
+#: Point ``BOOST_FIXTURE_DIR`` at a directory holding both files to run the
+#: boost leg for real.
+FIXTURE_DIR = Path(
+    os.environ.get("BOOST_FIXTURE_DIR", Path(__file__).resolve().parent / "fixtures")
+)
 
 XDF_PATH = CODE_ROOT / "xdf" / "SC8S50.V1.0.xdf"
 BIN_PATH = CODE_ROOT / "bin" / "5G0906259L__0002.bin"

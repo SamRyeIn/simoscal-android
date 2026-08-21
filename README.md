@@ -732,6 +732,7 @@ This is the sequence that actually worked on a physical tablet (2026-08-15).
 `parity/push_fixtures_and_compare.sh` wraps the first and last steps.
 
 ```bash
+export BOOST_FIXTURE_DIR=/path/to/switch-patch-xdf-and-patched-bin
 cd parity && ./push_fixtures_and_compare.sh push   # all four fixtures
 
 cd ..
@@ -747,9 +748,12 @@ adb shell am instrument -w -e fixtureDir /data/local/tmp/v0 \
 cd parity && ./push_fixtures_and_compare.sh compare
 ```
 
-Fixtures are **not committed** — the bin and XDFs are Sam's own and the repo
-gitignores `*.bin`. Absent fixtures make the test *skip*, matching the repo-wide
-convention for tests that touch the real bin/XDF. A skipped leg is recorded
+Fixtures are **not committed** — the repo gitignores `*.bin` and `*.xdf`. Two
+of the four come from a `simoscal` checkout (`SIMOSCAL_DIR`); the other two, the
+switch-patch XDF and the patched bin, are supplied locally (`BOOST_FIXTURE_DIR`)
+because one is third-party and the other is a specific car's calibration.
+Absent fixtures make the test *skip*, matching the repo-wide convention for
+tests that touch the real bin/XDF. A skipped leg is recorded
 inside the compared section, so a host golden that ran the boost leg cannot
 silently "match" a device run that skipped it — check the report has zero
 `SKIPPED` before believing a MATCH.

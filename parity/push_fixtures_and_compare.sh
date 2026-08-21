@@ -7,8 +7,10 @@
 # Run `push` once (before the test), then run the instrumentation test, then run
 # `compare`. Nothing here flashes anything.
 #
-# All four fixtures are committed to this repo, so `push` either places every one
-# of them or fails. It deliberately does *not* fall back to a partial push: the
+# None of the four fixtures live in this repo: two come from the simoscal
+# checkout and two are supplied locally (see BOOST_FIXTURE_DIR below). `push`
+# either places every one of them or fails, and deliberately does *not* fall
+# back to a partial push: the
 # payload records an absent boost fixture as SKIPPED rather than erroring, and a
 # host and device that both skip agree at a self-consistent digest and print
 # `PARITY: MATCH` — a green run that never exercised the boost leg. The loud
@@ -16,12 +18,17 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FIXTURES="$REPO/parity/fixtures"
+FIXTURES="${BOOST_FIXTURE_DIR:-$REPO/parity/fixtures}"
 DEVICE_DIR="/data/local/tmp/v0"
 
 # Two of the four fixtures (the stock XDF and the stock bin) live in the
 # simoscal library repo, not here — this app was split out of it. Point
 # SIMOSCAL_DIR at that checkout; the default assumes it sits alongside.
+#
+# The other two (the switch-patch XDF and the patched bin) are not redistributed
+# by either repo — one is third-party, one is a specific car's calibration. Put
+# them anywhere and point BOOST_FIXTURE_DIR at it; without them `push` fails
+# loudly rather than pushing three of four.
 SIMOSCAL="${SIMOSCAL_DIR:-$REPO/../simoscal}"
 if [ ! -d "$SIMOSCAL" ]; then
   echo "error: simoscal checkout not found at $SIMOSCAL." >&2
