@@ -300,6 +300,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             when (state.dirtyDraft) {
                 DirtyDraft.BOOST -> state.copy(boost = state.boost.copy(notice = reason))
                 DirtyDraft.TABLE -> state.copy(tables = state.tables.copy(notice = reason))
+                DirtyDraft.LIMITERS -> state.copy(limiters = state.limiters.copy(notice = reason))
                 null -> state
             }
         }
@@ -316,6 +317,10 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         // an undone toggle still reading "on" is that screen being wrong about
         // the only thing it claims to know.
         if (current.slots.loaded) loadSlotSettings()
+        // Same reasoning again, and it bites harder here: an undo that moved the
+        // trio back would otherwise leave a screen showing an ordering that no
+        // longer exists — and the ordering is the whole thing this screen is for.
+        if (current.limiters.model != null) loadLimiters()
     }
 
     // ------------------------------------------------------------------ build
@@ -436,6 +441,112 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                     is BridgeOutcome.Failed -> state.copy(
                         boost = state.boost.copy(loading = false, unavailable = outcome.message),
                         error = if (outcome.code == "TUNE_ERROR") null else outcome.toUserFacing(),
+                    )
+                }
+            }
+        }
+    }
+
+    // --------------------------------------------------------------- limiters
+
+    fun onRevDragged(index: Int, rpm: Double) =
+        _state.update { it.copy(limiters = it.limiters.withDraggedRev(index, rpm)) }
+
+    fun onRevTyped(index: Int, rpm: Double) =
+        _state.update { it.copy(limiters = it.limiters.withTypedRev(index, rpm)) }
+
+    fun onSpeedLimiterTyped(kmh: Double) =
+        _state.update { it.copy(limiters = it.limiters.withTypedSpeed(kmh)) }
+
+    fun onLimitersDiscard() =
+        _state.update { it.copy(limiters = it.limiters.discardingDraft()) }
+
+    fun dismissLimitersNotice() =
+        _state.update { it.copy(limiters = it.limiters.copy(notice = null)) }
+
+    /** Read every limiter in one call — the trio only means anything read together. */
+    fun loadLimiters() {
+        val sessionId = _state.value.sessionId ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(limiters = it.limiters.copy(loading = true, notice = null)) }
+            val outcome = bridge.call("limiters", params { put("session_id", sessionId) })
+            _state.update { state ->
+                when (outcome) {
+                    is BridgeOutcome.Ok ->
+                        state.copy(limiters = state.limiters.withModel(LimitersModel.fromJson(outcome.result)))
+                    is BridgeOutcome.Failed -> state.copy(
+                        limiters = state.limiters.copy(loading = false, unavailable = outcome.message),
+                        error = if (outcome.code == "TUNE_ERROR") null else outcome.toUserFacing(),
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Commit the staged limiters as one call — and therefore one coherent set.
+     *
+     * Both halves ride in a single op on purpose. The engine writes the quartet
+     * together and checks the trio's ordering against what the write would
+     * *leave behind*, so sending them as separate calls would open a window in
+     * which the bin holds a half-applied set that neither this screen nor the
+     * engine ever intended.
+     *
+     * Only the dirty half is sent: an untouched trio is absent from the request
+     * rather than re-sent at its current value, so a no-op never lands in the
+     * journal as an edit somebody has to explain later.
+     */
+    fun applyLimiters(intent: String) {
+        val sessionId = _state.value.sessionId ?: return
+        val limiters = _state.value.limiters
+        if (!limiters.canApply) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true) }
+            val outcome = bridge.call(
+                op = "limiters_edit",
+                params = params {
+                    put("session_id", sessionId)
+                    put("intent", intent)
+                    if (limiters.revDirty) {
+                        put("rev_limits", JSONObject().apply {
+                            put("soft", limiters.revDraft[LimitersModel.SOFT])
+                            put("medium", limiters.revDraft[LimitersModel.MEDIUM])
+                            put("hard", limiters.revDraft[LimitersModel.HARD])
+                        })
+                    }
+                    if (limiters.speedDirty) {
+                        put("speed_limiter_kmh", limiters.speedDraft)
+                    }
+                },
+            )
+            _state.update { state ->
+                when (outcome) {
+                    is BridgeOutcome.Ok -> {
+                        val payload = outcome.result.optJSONObject("limiters")
+                        val entries = outcome.result.optJSONArray("entries")?.length() ?: 0
+                        state.copy(
+                            busy = false,
+                            limiters = (
+                                if (payload != null) {
+                                    state.limiters.withModel(LimitersModel.fromJson(payload))
+                                } else {
+                                    state.limiters
+                                }
+                                ).copy(
+                                lastApplied = "Applied — $entries table${if (entries == 1) "" else "s"} written.",
+                            ),
+                            canUndo = outcome.result.optBoolean("can_undo", state.canUndo),
+                            canRedo = outcome.result.optBoolean("can_redo", state.canRedo),
+                        )
+                    }
+                    // A refusal is the engine's own sentence, shown where the
+                    // control is rather than as a global error: it is a fact
+                    // about the values staged here, and nothing else is wrong.
+                    is BridgeOutcome.Failed -> state.copy(
+                        busy = false,
+                        limiters = state.limiters.copy(notice = outcome.message),
+                        error = if (outcome.code == "EDIT_REJECTED") null else outcome.toUserFacing(),
                     )
                 }
             }

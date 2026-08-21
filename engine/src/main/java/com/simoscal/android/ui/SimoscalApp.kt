@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -245,6 +246,7 @@ fun SimoscalApp(viewModel: EditorViewModel, analysisViewModel: AnalysisViewModel
                 }
                 composable("tables") { TablesScreen(viewModel = viewModel) }
                 composable("boost") { BoostScreen(viewModel = viewModel) }
+                composable("limiters") { LimitersScreen(viewModel = viewModel) }
                 composable("slots") { SlotsScreen(viewModel = viewModel) }
                 composable("changes") { ChangesScreen(viewModel = viewModel) }
                 composable("build") { BuildScreen(viewModel = viewModel) }
@@ -301,6 +303,7 @@ private data class DestinationItem(
 private fun destinationItems(): List<DestinationItem> = listOf(
     DestinationItem(Destination.TABLES, "tables", "Tables", Icons.Filled.List),
     DestinationItem(Destination.BOOST, "boost", "Boost", Icons.Filled.KeyboardArrowUp),
+    DestinationItem(Destination.LIMITERS, "limiters", "Limiters", Icons.Filled.Warning),
     DestinationItem(Destination.SLOTS, "slots", "Slots", Icons.Filled.Settings),
     // Sits immediately before Build, because that is the order the work happens
     // in: read what you changed, then verify it. Putting it after Build would

@@ -10,7 +10,7 @@ package com.simoscal.android
  */
 
 /** Workspace destinations, available only once a session is open. */
-enum class Destination { TABLES, BOOST, SLOTS, CHANGES, BUILD }
+enum class Destination { TABLES, BOOST, LIMITERS, SLOTS, CHANGES, BUILD }
 
 sealed interface PreflightState {
     /** Inputs are not both chosen yet, or nothing has been checked. */
@@ -78,7 +78,7 @@ data class UserFacingError(val code: String, val message: String, val advanced: 
  * be lost, and the notice has to land in that editor rather than in a snackbar
  * over the other one.
  */
-enum class DirtyDraft { BOOST, TABLE }
+enum class DirtyDraft { BOOST, TABLE, LIMITERS }
 
 data class EditorUiState(
     /**
@@ -108,6 +108,7 @@ data class EditorUiState(
      * the rest of the per-bin state, and the recovery record never carries it.
      */
     val overlay: OverlayUiState = OverlayUiState(),
+    val limiters: LimitersUiState = LimitersUiState(),
     val tables: TablesUiState = TablesUiState(),
     val slots: SlotsUiState = SlotsUiState(),
     val changes: ChangesUiState = ChangesUiState(),
@@ -145,7 +146,12 @@ data class EditorUiState(
         // it reports the journal, and a base-only session journals just as much
         // as a patched one. Gating it on the patch would hide a person's own
         // edits from them for want of a file the edits did not need.
-        Destination.TABLES, Destination.CHANGES, Destination.BUILD -> sessionOpen
+        // Limiters sits with these rather than behind the switch patch: the
+        // road-speed quartet is base-calibration, so the screen has real work to
+        // do on an unpatched bin. It hides the cylinder-cut trio in that case
+        // rather than refusing to open — a degraded screen, not an error.
+        Destination.TABLES, Destination.CHANGES, Destination.BUILD,
+        Destination.LIMITERS -> sessionOpen
         // Boost and Slots both live in the switch-patch space, which only exists
         // if its XDF was imported. Same gate, same reason.
         Destination.BOOST, Destination.SLOTS -> sessionOpen && switchPatchXdf != null
@@ -164,6 +170,7 @@ data class EditorUiState(
         get() = when {
             boost.dirty -> DirtyDraft.BOOST
             tables.dirty -> DirtyDraft.TABLE
+            limiters.dirty -> DirtyDraft.LIMITERS
             else -> null
         }
 
@@ -192,6 +199,9 @@ data class EditorUiState(
             DirtyDraft.TABLE ->
                 "Apply or discard the change to this table first — this would " +
                     "replace it with the values the engine holds."
+            DirtyDraft.LIMITERS ->
+                "Apply or discard the limiter change first — this would replace " +
+                    "it with the values the engine holds."
             null -> null
         }
 
@@ -252,6 +262,7 @@ private fun EditorUiState.forgettingPreviousInputs(): EditorUiState = copy(
     // curves, and a trace left hanging behind a different calibration would
     // invite exactly the comparison it is no longer entitled to.
     overlay = OverlayUiState(),
+    limiters = LimitersUiState(),
     tables = TablesUiState(),
     changes = ChangesUiState(),
     error = null,
