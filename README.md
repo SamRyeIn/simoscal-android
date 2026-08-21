@@ -1,4 +1,4 @@
-# simoscal for Android (V0 parity gate + V7 shell + V8 editors)
+# simoscal for Android (V0 parity gate + V7 shell + V8 editors + V10 changes)
 
 Implements **V0**, **V7**, and **V8** of
 `docs/2026-07-21-002-feat-simoscal-android-v1-plan.md`: first prove the
@@ -34,6 +34,7 @@ also continues in the `simoscal` repo).
 | V7 on-device legs (SAF, share, recovery)  | **Green** — full import → preflight → session → edit → build → export run on a Galaxy Tab A9+ (2026-08-15); process-death recovery exercised too. Rotation and low-storage still owed |
 | V8 boost canvas + calibration editors     | Built; pure rules green (see V8)              |
 | V8 on-device legs (drag, screenshots)     | Parity pull done (2026-08-15, see V8); fingertip drag and screenshot tests still owed |
+| V10 Changes screen (session edit journal) | Built; host-verified (see V10). On-device look not yet checked |
 
 ## V7 — the Compose shell
 
@@ -60,7 +61,8 @@ UI code is `com.simoscal.android`; the V0/V6 engine plumbing stays in
 | `BoostUiState.kt`       | Staged boost draft, the stepper's selection, and every transition. Pure. |
 | `BoostPlot.kt`          | Canvas coordinate math, Compose-free so it is JVM-testable.       |
 | `TablesUiState.kt`      | Catalog, table draft, selection, and batch operations. Pure.      |
-| `ui/`                   | Compose shell, navigation, and the four screens.                  |
+| `ChangesUiState.kt`     | The session's journal as flat text, and what needs a reviewer's eyes. Pure. |
+| `ui/`                   | Compose shell, navigation, and the five screens.                  |
 
 ### The rules the shell enforces
 
@@ -207,19 +209,20 @@ Android Studio's bundled JDK 21 fails AGP 7.4.2's `JdkImageTransform` in
 to `../../simoscal` and the library actually lives inside the car-tuning repo
 at `SimosTools/Code`; `SIMOSCAL_DIR` in the environment does the same job.
 
-Expect **159 unit tests passing** and a receipt at
+Expect **183 unit tests passing** and a receipt at
 `engine/build/reports/permissions/debug.txt`:
 
 | Test class            | Cases |
 | --------------------- | ----- |
 | `BoostCurveTest`      | 18    |
 | `BoostPlotTest`       | 7     |
-| `BoostUiStateTest`    | 13    |
+| `BoostUiStateTest`    | 22    |
 | `BridgeProtocolTest`  | 13    |
+| `ChangesUiStateTest`  | 16    |
 | `FormattingTest`      | 15    |
 | `ImportNamingTest`    | 9     |
 | `NumpyPinTest`        | 1     |
-| `EditorStateTest`     | 24    |
+| `EditorStateTest`     | 23    |
 | `SlotsUiStateTest`    | 12    |
 | `TableHeatmapTest`    | 18    |
 | `TablesUiStateTest`   | 24    |
@@ -230,8 +233,11 @@ stale number cannot distinguish a complete run from a partial one. The figure ha
 now gone stale three times: 93 → 109 when the 2026-08-14 review fixes added
 cases without updating it (CR-20260815-03), 109 → 158 when V8/V9's own suites
 landed the same way, caught while re-running the gate for the 2026-08-17
-repaint, and 158 → 159 when the 2026-08-18 split moved `NumpyPinTest` here from
-`simoscal` without updating the total. If you add a test, add it here.
+repaint, 158 → 159 when the 2026-08-18 split moved `NumpyPinTest` here from
+`simoscal` without updating the total, and 159 → 167 again before V10 (nine cases
+added to `BoostUiStateTest`, one retired from `EditorStateTest`, neither
+recorded) — found by diffing this table against the run rather than by anyone
+noticing. V10 takes it to 183. If you add a test, add it here.
 
 The unit tests are deliberately JVM-only and cover the pure layers: the envelope
 contract against the real `org.json`, every state gate, the import naming and
@@ -574,6 +580,76 @@ separately on the same tablet later that day. This run shows the app produces a
 correct bin through its real workflow; the parity gate shows the engine computes
 byte-identical results to the host across the payload's six legs. Both now hold
 on physical hardware, but neither implies the other.
+
+## V10 — the Changes screen
+
+Until now the app could tell you what a *build* changed and nothing else. Every
+edit vanished into the session the moment it was applied: the boost editor showed
+the curve you now had, the table grid showed the values you now had, and the only
+way to see the set of things you had done was to run a build and read its report.
+That is the wrong order — Build is the gate you pass *after* reviewing, and there
+was nowhere to review.
+
+The **Changes** destination is that missing page: the session's edit journal,
+re-read on every visit.
+
+### It reads the engine's journal; it does not keep its own
+
+`ChangesUiState` holds only what the `journal` op returned. The obvious cheaper
+design — accumulate the `entry` each edit reply already carries — is wrong, and
+undo is why. `History._restore` replaces the journal's entry list *wholesale*
+from a snapshot rather than popping the last entry, so an app-side list would
+still show an edit the session no longer holds. There is no reconciliation that
+fixes this; the engine's copy is the only one that can be right.
+
+That is also what makes the screen auto-update with no subscription and no
+polling. Navigating away leaves the composition; coming back re-runs
+`LaunchedEffect(sessionId)`, which calls `loadJournal()` unconditionally — not
+gated on `loaded` the way `SlotsScreen` gates its one-time read, because a stale
+list is this screen's failure mode rather than an acceptable cache.
+`test_journal_follows_undo_and_redo` in the engine's suite is the property the
+whole design rests on.
+
+### It is a running list, never a report
+
+The screen is styled after `render_report_html` — the same tally across the top,
+the same "Needs your eyes" section lifting held-back entries out of the list
+before the list, the same before → after cards, the same collapsed full journal,
+the same colour meanings. One thing is deliberately **not** borrowed: the verdict
+banner.
+
+That banner speaks for checksums, readback, and the byte audit, and this screen
+has run none of them. Re-deriving a verdict from a live journal is exactly the
+drift `CR-20260724-02` closed, which is why `simoscal/bridge.py` has never
+offered a `report` op and why the `journal` op returns no `verified` flag, no
+gate rows, no checksum state and no share path —
+`test_journal_carries_no_gate_verdict` asserts their absence on the wire. In
+their place the screen carries a standing amber band saying the list is
+unverified and that Build is what verifies it. Export still exists only in
+`BuildState.Verified`, unchanged.
+
+### Three distinctions the screen refuses to collapse
+
+- **Applied is not the same as bytes moved.** A write whose target was already
+  met stages nothing and is still `applied`. The headline figure counts
+  `touched`, the engine's own measurement, so "3 edits moved bytes" cannot be
+  inflated by writes that changed nothing.
+- **Not read yet is not the same as nothing changed.** `loaded` is separate from
+  `entries.isEmpty()`, because showing "No changes yet" while the read is in
+  flight tells someone their edits are gone.
+- **A failed refresh is not an empty list.** `failed()` keeps the previous
+  entries and adds a notice. Blanking them would replace a stale answer with a
+  confident wrong one about the thing the person is about to flash.
+
+An unknown verdict — a newer engine against an older app — parses to
+`Verdict.UNKNOWN` and is never rendered as applied or counted as a change, the
+same rule `SettingKind.UNKNOWN` follows on the slots screen.
+
+### Still owed
+
+On-device: the tab is host-verified only (183 unit tests, `assembleDebug` green).
+The five-item navigation bar and the collapsed journal at a real recipe's entry
+count have not been looked at on the tablet.
 
 ## V0 verdict: CLOSED — arm64 PASS (2026-08-15/16), x86_64 dropped rather than proven
 

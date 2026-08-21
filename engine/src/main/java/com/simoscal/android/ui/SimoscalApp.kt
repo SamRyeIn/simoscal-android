@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Settings
@@ -218,6 +219,7 @@ fun SimoscalApp(viewModel: EditorViewModel) {
                 composable("tables") { TablesScreen(viewModel = viewModel) }
                 composable("boost") { BoostScreen(viewModel = viewModel) }
                 composable("slots") { SlotsScreen(viewModel = viewModel) }
+                composable("changes") { ChangesScreen(viewModel = viewModel) }
                 composable("build") { BuildScreen(viewModel = viewModel) }
             }
         }
@@ -263,6 +265,10 @@ private fun destinationItems(): List<DestinationItem> = listOf(
     DestinationItem(Destination.TABLES, "tables", "Tables", Icons.Filled.List),
     DestinationItem(Destination.BOOST, "boost", "Boost", Icons.Filled.KeyboardArrowUp),
     DestinationItem(Destination.SLOTS, "slots", "Slots", Icons.Filled.Settings),
+    // Sits immediately before Build, because that is the order the work happens
+    // in: read what you changed, then verify it. Putting it after Build would
+    // put the unverified list on the far side of the gate that verifies it.
+    DestinationItem(Destination.CHANGES, "changes", "Changes", Icons.Filled.Edit),
     DestinationItem(Destination.BUILD, "build", "Build", Icons.Filled.Build),
 )
 

@@ -606,6 +606,49 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // ---------------------------------------------------------------- changes
+
+    fun dismissChangesNotice() = _state.update { it.copy(changes = it.changes.copy(notice = null)) }
+
+    /**
+     * Re-read the session's edit journal.
+     *
+     * Called every time the Changes screen enters composition, which is what
+     * makes it current without a subscription: navigating away leaves the
+     * composable, coming back re-runs its `LaunchedEffect`, and the list is read
+     * fresh from the engine. Cheap enough to do unconditionally — the journal is
+     * already in memory on the engine's side and no bytes are touched.
+     *
+     * Not folded into the edit paths on purpose. Appending the entry each reply
+     * carries would be one fewer call and wrong: undo and redo restore the whole
+     * entry list from a snapshot, so an app-side list would keep showing an edit
+     * that no longer exists. Reading the journal is the only way to be right.
+     */
+    fun loadJournal() {
+        val sessionId = _state.value.sessionId ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(changes = it.changes.loading()) }
+            val outcome = bridge.call("journal", params { put("session_id", sessionId) })
+            _state.update { state ->
+                when (outcome) {
+                    is BridgeOutcome.Ok -> state.copy(
+                        changes = state.changes.withEntries(
+                            entries = outcome.result.changeEntries(),
+                            counts = outcome.result.changeCounts(),
+                        ),
+                    )
+                    // Kept off the snackbar. This screen reloads itself on every
+                    // visit, so a transient failure here is not something to
+                    // interrupt another screen over — it belongs on the list it
+                    // failed to refresh, which is where the notice puts it.
+                    is BridgeOutcome.Failed -> state.copy(
+                        changes = state.changes.failed(outcome.message),
+                    )
+                }
+            }
+        }
+    }
+
     // ----------------------------------------------------------------- tables
 
     fun onTableQueryChanged(query: String) =

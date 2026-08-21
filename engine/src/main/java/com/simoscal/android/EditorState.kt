@@ -10,7 +10,7 @@ package com.simoscal.android
  */
 
 /** Workspace destinations, available only once a session is open. */
-enum class Destination { TABLES, BOOST, SLOTS, BUILD }
+enum class Destination { TABLES, BOOST, SLOTS, CHANGES, BUILD }
 
 sealed interface PreflightState {
     /** Inputs are not both chosen yet, or nothing has been checked. */
@@ -102,6 +102,7 @@ data class EditorUiState(
     val boost: BoostUiState = BoostUiState(),
     val tables: TablesUiState = TablesUiState(),
     val slots: SlotsUiState = SlotsUiState(),
+    val changes: ChangesUiState = ChangesUiState(),
     val busy: Boolean = false,
     val error: UserFacingError? = null,
 ) {
@@ -132,7 +133,11 @@ data class EditorUiState(
 
     /** The workspace is reachable only with a live session. */
     fun destinationEnabled(destination: Destination): Boolean = when (destination) {
-        Destination.TABLES, Destination.BUILD -> sessionOpen
+        // Changes sits with Tables and Build rather than behind the switch patch:
+        // it reports the journal, and a base-only session journals just as much
+        // as a patched one. Gating it on the patch would hide a person's own
+        // edits from them for want of a file the edits did not need.
+        Destination.TABLES, Destination.CHANGES, Destination.BUILD -> sessionOpen
         // Boost and Slots both live in the switch-patch space, which only exists
         // if its XDF was imported. Same gate, same reason.
         Destination.BOOST, Destination.SLOTS -> sessionOpen && switchPatchXdf != null
@@ -236,6 +241,7 @@ private fun EditorUiState.forgettingPreviousInputs(): EditorUiState = copy(
     build = BuildState.NotBuilt,
     boost = BoostUiState(),
     tables = TablesUiState(),
+    changes = ChangesUiState(),
     error = null,
 )
 
