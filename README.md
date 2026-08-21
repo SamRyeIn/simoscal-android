@@ -1022,12 +1022,41 @@ there before either repo is held up as the source offer.
 
 ### Store-listing paperwork
 
-- `docs/privacy-policy.md` — the policy text. Play requires it at a public URL;
-  two placeholders (developer name, contact address) must be filled in first.
+- `docs/privacy-policy.md` — the policy text, and **only** the policy text. It
+  is written to be published verbatim, so keep internal guidance out of it; the
+  notes that used to sit at its head and foot are reproduced below instead.
+  Play requires it at a stable public URL, and requires the contact route in it
+  to stay monitored — an unreachable contact is treated as a policy problem, not
+  an oversight. There are no placeholders left to fill: `80d3ced` settled the
+  publisher as *the simoscal project* and the contact as the project gmail.
 - `docs/play-data-safety.md` — every Data safety answer with the evidence in
   this repo that makes it true, so it can be re-verified per submission rather
   than copied forward. Short version: nothing is collected, because there is no
   network permission to collect it with.
+
+#### Who Google makes public, by account type
+
+This is not a privacy-policy question — the policy names no individual — but
+Google asks the same question elsewhere, and the account type decides how much
+of the answer becomes public.
+
+A **personal** account displays the developer's legal name, the *country* from
+the legal address, and the developer email. The **full address is published only
+if the app monetizes** — a free app with no ads and no in-app purchases, which
+this is, shows country alone.
+
+An **organization** account publishes the organization's legal name, **full
+legal address**, developer email and phone. It also requires a D-U-N-S number,
+and therefore a registered entity. For a solo project this is the *worse* option
+for address privacy, not the better one: it publishes a street address that the
+personal route does not.
+
+So the residual public exposure on the personal route is the legal name, not an
+address. The trade runs the other way on schedule, though: personal accounts
+created after 2023-11-13 must run a closed test with 12 testers opted in for 14
+continuous days before they can apply for production access, and organization
+accounts are exempt. Verify both against Play Console's current requirements
+before submitting — they change.
 
 ### Play-uploadability
 

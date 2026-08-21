@@ -2,11 +2,6 @@
 
 **Last updated:** 2026-08-20
 
-> **Before publishing:** publish this at a stable public URL (GitHub Pages off
-> this repo is enough) and give that URL to the Play Console. Keep the contact
-> address below monitored — Play treats an unreachable contact route as a policy
-> problem, not an oversight.
-
 ## Summary
 
 The simoscal Android app does not collect, transmit, or share any data. It
@@ -98,21 +93,3 @@ post): <https://github.com/SamRyeIn/simoscal-android/issues>
 
 Source code: <https://github.com/SamRyeIn/simoscal-android> and
 <https://github.com/SamRyeIn/simoscal>
-
-> **Note on the Play listing.** This document is not the only place Google asks
-> who you are, and the account type decides how much of it becomes public.
->
-> A **personal** account displays the developer's legal name, the *country* from
-> the legal address, and the developer email. The **full address is published
-> only if the app monetizes** — a free app with no ads and no in-app purchases,
-> which this is, shows country alone.
->
-> An **organization** account publishes the organization's legal name, **full
-> legal address**, developer email and phone. It also requires a D-U-N-S number,
-> and therefore a registered entity. For a solo project this is the *worse*
-> option for address privacy, not the better one: it publishes a street address
-> that the personal route does not.
->
-> So the residual public exposure on the personal route is the legal name, not an
-> address. Verify against Play Console's current requirements before submitting —
-> this changes.
