@@ -301,6 +301,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                 DirtyDraft.BOOST -> state.copy(boost = state.boost.copy(notice = reason))
                 DirtyDraft.TABLE -> state.copy(tables = state.tables.copy(notice = reason))
                 DirtyDraft.LIMITERS -> state.copy(limiters = state.limiters.copy(notice = reason))
+                DirtyDraft.PEDAL -> state.copy(pedal = state.pedal.copy(notice = reason))
                 null -> state
             }
         }
@@ -321,6 +322,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         // trio back would otherwise leave a screen showing an ordering that no
         // longer exists — and the ordering is the whole thing this screen is for.
         if (current.limiters.model != null) loadLimiters()
+        current.pedal.detail?.summary?.let { openPedalMap(it) }
     }
 
     // ------------------------------------------------------------------ build
@@ -447,6 +449,156 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // ------------------------------------------------------------------ pedal
+
+    fun onPedalColumnSelected(index: Int) =
+        _state.update { it.copy(pedal = it.pedal.selectingColumn(index)) }
+
+    fun onPedalPointDragged(index: Int, factor: Double) =
+        _state.update { it.copy(pedal = it.pedal.withDraggedPoint(index, factor)) }
+
+    fun onPedalPointTyped(index: Int, factor: Double) =
+        _state.update { it.copy(pedal = it.pedal.withTypedPoint(index, factor)) }
+
+    fun onPedalDiscard() = _state.update { it.copy(pedal = it.pedal.discardingDraft()) }
+
+    fun onPedalRevertToSource() = _state.update { it.copy(pedal = it.pedal.revertingToSource()) }
+
+    fun dismissPedalNotice() = _state.update { it.copy(pedal = it.pedal.copy(notice = null)) }
+
+    /**
+     * List the driver-interpretation maps, then open one.
+     *
+     * The list is filtered out of the ordinary catalog rather than fetched from a
+     * dedicated op: these maps are ordinary tables that happen to deserve a
+     * shape, and giving them an op would imply the engine owes them a guard it
+     * does not (see the bridge's own note on why the Pedal screen has no op).
+     */
+    fun loadPedalMaps() {
+        val sessionId = _state.value.sessionId ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(pedal = it.pedal.copy(loading = true, notice = null)) }
+            val outcome = bridge.call("catalog", params { put("session_id", sessionId) })
+            _state.update { state ->
+                when (outcome) {
+                    is BridgeOutcome.Ok -> {
+                        val array = outcome.result.optJSONArray("tables")
+                        val maps = (0 until (array?.length() ?: 0)).mapNotNull { index ->
+                            array?.optJSONObject(index)?.let(TableSummary::fromJson)
+                        }.filter { it.name.startsWith(PEDAL_MAP_PREFIX) }
+                        state.copy(pedal = state.pedal.copy(maps = maps, loading = false))
+                    }
+                    is BridgeOutcome.Failed -> state.copy(
+                        pedal = state.pedal.copy(loading = false),
+                        error = outcome.toUserFacing(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun openPedalMap(summary: TableSummary) {
+        val sessionId = _state.value.sessionId ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(pedal = it.pedal.copy(loading = true, notice = null)) }
+            val outcome = bridge.call(
+                op = "table_detail",
+                params = params {
+                    put("session_id", sessionId)
+                    put("name", summary.name)
+                    put("space", summary.space)
+                },
+            )
+            _state.update { state ->
+                when (outcome) {
+                    is BridgeOutcome.Ok -> {
+                        val payload = outcome.result.optJSONObject("table")
+                        if (payload == null) {
+                            state.copy(
+                                pedal = state.pedal.copy(
+                                    loading = false,
+                                    notice = "The engine returned no table.",
+                                ),
+                            )
+                        } else {
+                            state.copy(pedal = state.pedal.withDetail(TableDetail.fromJson(payload)))
+                        }
+                    }
+                    is BridgeOutcome.Failed -> state.copy(
+                        pedal = state.pedal.copy(loading = false),
+                        error = outcome.toUserFacing(),
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Commit the staged pedal curve as one `paste` over the whole grid.
+     *
+     * The whole grid rather than the one column, and one op rather than twelve
+     * cell writes: the engine journals a paste as a single entry, so one
+     * deliberate reshaping of the pedal at one rpm stays one undo point and one
+     * line in the report.
+     */
+    fun applyPedalDraft(intent: String) {
+        val current = _state.value
+        val sessionId = current.sessionId ?: return
+        val pedal = current.pedal
+        val detail = pedal.detail ?: return
+        if (!pedal.canApply) return
+
+        val proposed = detail.values.mapIndexed { row, cells ->
+            cells.mapIndexed { col, value ->
+                if (col == pedal.column) pedal.draft.getOrElse(row) { value } else value
+            }
+        }
+
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true) }
+            val outcome = bridge.call(
+                op = "edit",
+                params = params {
+                    put("session_id", sessionId)
+                    put("name", detail.summary.name)
+                    put("space", detail.summary.space)
+                    put("op", "paste")
+                    put("selection", JSONObject().put("kind", "all"))
+                    put("array", proposed.toJsonArray())
+                    put("intent", intent)
+                },
+            )
+            _state.update { state ->
+                when (outcome) {
+                    is BridgeOutcome.Ok -> {
+                        val encoded = outcome.result.grid("encoded").ifEmpty { proposed }
+                        val quantized = outcome.result.optBoolean("quantized", false)
+                        val maxQuant = outcome.result.optDouble("max_abs_quantization", 0.0)
+                        state.copy(
+                            busy = false,
+                            pedal = state.pedal.applied(
+                                encoded,
+                                if (quantized) {
+                                    "Applied — stored to within ${maxQuant.display("%.4f")} " +
+                                        "of what was asked for."
+                                } else {
+                                    "Applied."
+                                },
+                            ),
+                            canUndo = outcome.result.optBoolean("can_undo", state.canUndo),
+                            canRedo = outcome.result.optBoolean("can_redo", state.canRedo),
+                        ).invalidatingBuild()
+                    }
+                    is BridgeOutcome.Failed -> state.copy(
+                        busy = false,
+                        pedal = state.pedal.copy(notice = outcome.message),
+                        error = if (outcome.code == "EDIT_REJECTED") null else outcome.toUserFacing(),
+                    )
+                }
+            }
+        }
+    }
+
     // --------------------------------------------------------------- limiters
 
     fun onRevDragged(index: Int, rpm: Double) =
@@ -538,7 +690,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                             ),
                             canUndo = outcome.result.optBoolean("can_undo", state.canUndo),
                             canRedo = outcome.result.optBoolean("can_redo", state.canRedo),
-                        )
+                        ).invalidatingBuild()
                     }
                     // A refusal is the engine's own sentence, shown where the
                     // control is rather than as a global error: it is a fact

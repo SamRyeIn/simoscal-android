@@ -141,6 +141,16 @@ data class TableDetail(
     val values: List<List<Double>>,
     val xAxis: TableAxis?,
     val yAxis: TableAxis?,
+    /**
+     * The table as the **imported bin** held it, before this session wrote
+     * anything — the reference a curve editor ghosts behind a working draft.
+     *
+     * Empty means the engine sent none, which it does when a session was
+     * recovered rather than opened and the pre-edit buffer is not in hand. That
+     * is "no ghost to draw", never "unchanged": a screen that treated the two
+     * alike would draw the working curve as though nothing had ever moved.
+     */
+    val sourceValues: List<List<Double>> = emptyList(),
 ) {
     companion object {
         fun fromJson(json: JSONObject): TableDetail = TableDetail(
@@ -148,6 +158,7 @@ data class TableDetail(
             values = json.grid("values"),
             xAxis = json.axis("x_axis"),
             yAxis = json.axis("y_axis"),
+            sourceValues = if (json.isNull("source_values")) emptyList() else json.grid("source_values"),
         )
     }
 }
