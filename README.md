@@ -1047,40 +1047,8 @@ August, and the value that mattered when this was written may not be the value
 that matters when you upload.
 
 What remains is not build work: a hosted privacy-policy URL, the Data safety
-form, content rating, and the store listing itself. See below.
-
-### Licensing, and why it is GPL-3.0
-
-The APK embeds the `simoscal` Python library, which is GPL-3.0. Shipping it
-inside a distributed binary makes the binary a conveyed work, so this app takes
-the same licence — a consequence of the dependency, not a preference. `LICENSE`
-is the GPL-3.0 text (byte-identical to simoscal's), and `LICENSE-THIRD-PARTY`
-covers Chaquopy, CPython, NumPy, AndroidX/Compose/Kotlin and org.json.
-
-Anyone who receives the APK is entitled to the corresponding source; both repos
-being public is what satisfies that.
-
-Known inconsistency, in the *other* repo: `simoscal`'s `pyproject.toml` declares
-`license = { text = "Proprietary" }` while its LICENSE file and GitHub both say
-GPL-3.0. The metadata is the thing that is wrong, and it should be corrected
-there before either repo is held up as the source offer.
-
-### Store-listing paperwork
-
-- `docs/privacy-policy.md` — the policy text. Play requires it at a public URL;
-  two placeholders (developer name, contact address) must be filled in first.
-- `docs/play-data-safety.md` — every Data safety answer with the evidence in
-  this repo that makes it true, so it can be re-verified per submission rather
-  than copied forward. Short version: nothing is collected, because there is no
-  network permission to collect it with.
-
-### This is not yet Play-uploadable
-
-`targetSdk` is still 33, which Play rejects for new apps and updates, and which
-Play Protect already objects to on sideload (see above). Raising it means
-`compileSdk 34+` → AGP 8 → the Chaquopy task-graph failure the root build
-documents. Signing and shrinking were the parts that could be done without
-reopening that; the SDK bump is its own piece of work.
+form, content rating, and the store listing itself — see *Store-listing
+paperwork* above.
 
 ## Environment / toolchain
 
