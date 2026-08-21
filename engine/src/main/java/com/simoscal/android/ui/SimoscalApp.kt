@@ -13,7 +13,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
@@ -309,7 +308,7 @@ private fun destinationItems(): List<DestinationItem> = listOf(
     DestinationItem(Destination.BOOST, "boost", "Boost", Icons.Filled.KeyboardArrowUp),
     DestinationItem(Destination.LIMITERS, "limiters", "Limiters", Icons.Filled.Warning),
     DestinationItem(Destination.PEDAL, "pedal", "Pedal", Icons.Filled.PlayArrow),
-    DestinationItem(Destination.LAMBDA, "lambda", "Lambda", Icons.Filled.Favorite),
+    DestinationItem(Destination.LAMBDA, "lambda", "Lambda", GasCanIcon),
     DestinationItem(Destination.SLOTS, "slots", "Slots", Icons.Filled.Settings),
     // Sits immediately before Build, because that is the order the work happens
     // in: read what you changed, then verify it. Putting it after Build would
@@ -369,4 +368,3 @@ private fun BlockedDialog(
         },
     )
 }
-
