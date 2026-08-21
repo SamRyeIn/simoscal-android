@@ -100,6 +100,14 @@ data class EditorUiState(
     val canRedo: Boolean = false,
     val build: BuildState = BuildState.NotBuilt,
     val boost: BoostUiState = BoostUiState(),
+    /**
+     * The logged pull drawn behind the boost curves, when one is loaded.
+     *
+     * Read-only decoration, and kept out of everything that decides what the bin
+     * contains: no gate below reads it, [forgettingPreviousInputs] clears it with
+     * the rest of the per-bin state, and the recovery record never carries it.
+     */
+    val overlay: OverlayUiState = OverlayUiState(),
     val tables: TablesUiState = TablesUiState(),
     val slots: SlotsUiState = SlotsUiState(),
     val changes: ChangesUiState = ChangesUiState(),
@@ -240,6 +248,10 @@ private fun EditorUiState.forgettingPreviousInputs(): EditorUiState = copy(
     canRedo = false,
     build = BuildState.NotBuilt,
     boost = BoostUiState(),
+    // The overlay is a log, not a bin — but it is drawn *against* this bin's
+    // curves, and a trace left hanging behind a different calibration would
+    // invite exactly the comparison it is no longer entitled to.
+    overlay = OverlayUiState(),
     tables = TablesUiState(),
     changes = ChangesUiState(),
     error = null,

@@ -1,5 +1,8 @@
 package com.simoscal.android.ui
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +46,8 @@ import com.simoscal.android.display
 import com.simoscal.android.displayExact
 import com.simoscal.android.EditorUiState
 import com.simoscal.android.EditorViewModel
+import com.simoscal.android.InputKind
+import com.simoscal.android.OverlayUiState
 import com.simoscal.android.SLOT_IDS
 import com.simoscal.android.withFlippedSign
 import kotlin.math.abs
@@ -77,6 +82,13 @@ fun BoostScreen(viewModel: EditorViewModel) {
     LaunchedEffect(state.sessionId) {
         if (state.sessionId != null && boost.model == null) viewModel.loadBoostCurve()
     }
+
+    // One CSV at a time, deliberately: the overlay draws one pull, and a
+    // multi-select would invite picking a folder's worth of logs to answer a
+    // question about a single run.
+    val overlayPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? -> uri?.let(viewModel::onOverlayLogPicked) }
 
     var editingIndex by remember { mutableStateOf<Int?>(null) }
     var flatCapOpen by remember { mutableStateOf(false) }
@@ -127,6 +139,7 @@ fun BoostScreen(viewModel: EditorViewModel) {
             onFlatCap = { flatCapOpen = true },
             onEditPoint = selectAndType,
             onEditSelected = { editingIndex = boost.selectedIndex },
+            onPickOverlayLog = { overlayPicker.launch(InputKind.LOG.mimeTypes) },
         )
 
         else -> BoostPortrait(
@@ -140,6 +153,7 @@ fun BoostScreen(viewModel: EditorViewModel) {
             onEditAxis = { axisOpen = true },
             onEditPoint = selectAndType,
             onEditSelected = { editingIndex = boost.selectedIndex },
+            onPickOverlayLog = { overlayPicker.launch(InputKind.LOG.mimeTypes) },
         )
     }
 
@@ -236,6 +250,7 @@ private fun BoostPortrait(
     onEditAxis: () -> Unit,
     onEditPoint: (Int) -> Unit,
     onEditSelected: () -> Unit,
+    onPickOverlayLog: () -> Unit,
 ) {
     val boost = state.boost
 
@@ -264,6 +279,14 @@ private fun BoostPortrait(
             modifier = Modifier.height(PortraitPlotHeight),
             onDragPoint = viewModel::onBoostPointDragged,
             onTapPoint = onEditPoint,
+            overlay = state.overlay.visiblePull,
+        )
+
+        OverlayCard(
+            overlay = state.overlay,
+            onPickLog = onPickOverlayLog,
+            onSelectPull = viewModel::onOverlayPullSelected,
+            onClear = viewModel::clearOverlay,
         )
 
         BreakpointStepper(viewModel = viewModel, boost = boost, onType = onEditSelected)
@@ -378,6 +401,7 @@ private fun BoostLandscape(
     onFlatCap: () -> Unit,
     onEditPoint: (Int) -> Unit,
     onEditSelected: () -> Unit,
+    onPickOverlayLog: () -> Unit,
 ) {
     val boost = state.boost
 
@@ -413,9 +437,20 @@ private fun BoostLandscape(
             modifier = Modifier.weight(1f),
             onDragPoint = viewModel::onBoostPointDragged,
             onTapPoint = onEditPoint,
+            overlay = state.overlay.visiblePull,
         )
 
         BoostStatusLine(state = state, model = model)
+
+        // Sideways, the overlay is one compact row rather than the portrait
+        // card: the plot has the height here, and the pull chooser is something
+        // you set once and then read the curve against.
+        OverlayStrip(
+            overlay = state.overlay,
+            onPickLog = onPickOverlayLog,
+            onSelectPull = viewModel::onOverlayPullSelected,
+            onClear = viewModel::clearOverlay,
+        )
 
         CompactBreakpointStepper(viewModel = viewModel, boost = boost, onType = onEditSelected)
 
@@ -752,6 +787,136 @@ private fun EncodedReceiptCard(
             style = PromoType.figureSmall,
             color = PromoPalette.TextDim,
         )
+    }
+}
+
+/**
+ * The overlay control: pick a log, choose a pull, or clear what is drawn.
+ *
+ * The copy is careful to keep the trace's status as *evidence* rather than
+ * verdict. It says what is drawn and lets the curve and the trace be read
+ * against each other; it never says whether the boost was right, because nothing
+ * in this feature is entitled to an opinion about that.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OverlayCard(
+    overlay: OverlayUiState,
+    onPickLog: () -> Unit,
+    onSelectPull: (Int) -> Unit,
+    onClear: () -> Unit,
+) {
+    Panel(tone = if (overlay.active) PanelTone.Accent else PanelTone.Neutral) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            PanelTitle(
+                if (overlay.active) "Logged pull" else "Overlay a log",
+                tone = if (overlay.active) PanelTone.Accent else PanelTone.Neutral,
+                modifier = Modifier.weight(1f),
+            )
+            if (overlay.model != null) {
+                TextButton(onClick = onClear) { Text("Clear") }
+            }
+            PromoOutlinedButton(onClick = onPickLog) {
+                Text(if (overlay.model == null) "Choose log" else "Change log")
+            }
+        }
+
+        when {
+            overlay.loading -> Text(
+                "Reading the log…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = PromoPalette.TextDim,
+            )
+
+            overlay.model == null -> Text(
+                "Draw a real pull behind these curves: actual boost and the " +
+                    "setpoint the ECU was chasing, from a SimosTools log on this device.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = PromoPalette.TextDim,
+            )
+
+            overlay.unavailable != null -> Text(
+                overlay.unavailable,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+
+            else -> {
+                overlay.logName?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = PromoPalette.TextFaint)
+                }
+                PullChooser(overlay = overlay, onSelectPull = onSelectPull)
+                Text(
+                    "Solid is what the turbo delivered; dashed is what the ECU asked for.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = PromoPalette.TextFaint,
+                )
+            }
+        }
+
+        overlay.notice?.let {
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = PanelTone.Danger.ink)
+        }
+    }
+}
+
+/** The landscape form: the same controls in one row, since the plot owns the height. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OverlayStrip(
+    overlay: OverlayUiState,
+    onPickLog: () -> Unit,
+    onSelectPull: (Int) -> Unit,
+    onClear: () -> Unit,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+    ) {
+        Kicker("Log", color = PromoPalette.TextFaint)
+        if (overlay.hasChoices) {
+            PullChooser(overlay = overlay, onSelectPull = onSelectPull)
+            TextButton(onClick = onClear) { Text("Clear") }
+        } else {
+            Text(
+                overlay.unavailable ?: overlay.notice ?: "No pull drawn",
+                style = MaterialTheme.typography.bodySmall,
+                color = PromoPalette.TextDim,
+            )
+        }
+        PromoOutlinedButton(onClick = onPickLog) {
+            Text(if (overlay.model == null) "Choose log" else "Change")
+        }
+    }
+}
+
+/**
+ * One chip per detected pull, captioned with gear, rpm span and duration.
+ *
+ * The caption comes from [OverlayPull.caption], which formats what the engine
+ * attributed — the gear especially. A log's gear channel is zero-indexed under
+ * one header and actual under another, and the engine has already resolved
+ * which; re-deriving a gear here is how the two halves of the app would come to
+ * disagree about which pull a person is looking at.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PullChooser(overlay: OverlayUiState, onSelectPull: (Int) -> Unit) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+    ) {
+        overlay.choosablePulls.forEach { pull ->
+            FilterChip(
+                selected = pull.index == overlay.selectedPull,
+                onClick = { onSelectPull(pull.index) },
+                label = { Text(pull.caption) },
+            )
+        }
     }
 }
 

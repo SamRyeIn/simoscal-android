@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.simoscal.android.BoostCurveModel
 import com.simoscal.android.BoostPlotGeometry
 import com.simoscal.android.BoostPlotScale
+import com.simoscal.android.OverlayPull
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -78,10 +79,11 @@ fun BoostCanvas(
     modifier: Modifier = Modifier,
     onDragPoint: (index: Int, psi: Double) -> Unit,
     onTapPoint: (index: Int) -> Unit,
+    overlay: OverlayPull? = null,
 ) {
     val measurer = rememberTextMeasurer()
 
-    val scale = remember(model, draft) { BoostPlotScale.of(model, draft) }
+    val scale = remember(model, draft, overlay) { BoostPlotScale.of(model, draft, overlay) }
 
     Canvas(
         modifier = modifier
@@ -144,6 +146,11 @@ fun BoostCanvas(
             )
         }
 
+        // The logged pull, under everything the person is editing. It is
+        // evidence, not a calibration line, so it never competes with the curves
+        // for attention — and never for a fingertip either: no gesture reads it.
+        overlay?.let { drawOverlay(it, scale, geometry) }
+
         // The stepper's breakpoint, marked before the curves so the guide sits
         // under them. Without it the plus and minus buttons would be moving a
         // number the plot gives no way to find — the rpm in the readout and the
@@ -202,6 +209,63 @@ fun BoostCanvas(
 }
 
 // -------------------------------------------------------------------- drawing
+
+/**
+ * Draw one logged pull: measured boost solid, the ECU's setpoint dashed.
+ *
+ * Deliberately subordinate to the curves — thinner, dimmer, and drawn underneath
+ * them. The curves are what a person is changing; the trace is what the car did,
+ * and if the two ever compete visually the wrong one wins. Same solid/dashed
+ * convention the desktop evidence plots use for the same two quantities, so
+ * somebody who has read one recognises the other without a legend.
+ *
+ * The segments are drawn as the engine sent them: already masked, gear-trimmed
+ * and rpm-sorted. Each is stroked separately and never joined, so a line never
+ * bridges a hole the mask deliberately made.
+ */
+private fun DrawScope.drawOverlay(
+    pull: OverlayPull,
+    scale: BoostPlotScale,
+    geometry: BoostPlotGeometry,
+) {
+    pull.series.forEach { series ->
+        series.segments.forEach { segment ->
+            val points = segment.rpm.indices.map { index ->
+                Offset(
+                    scale.x(geometry, segment.rpm[index]),
+                    scale.y(geometry, segment.values[index]),
+                )
+            }
+            if (series.isSetpoint) {
+                drawDashedPolyline(points, OverlaySetpointColor, 1.8f)
+            } else {
+                drawPolyline(points, OverlayMeasuredColor, 2.2f)
+            }
+        }
+    }
+}
+
+/** Measured boost: the log's own colour, distinct from every slot's. */
+private val OverlayMeasuredColor = Color(0xFFE8D7A8).copy(alpha = 0.62f)
+
+/** The setpoint it was chasing, fainter still — context for the context. */
+private val OverlaySetpointColor = Color(0xFFE8D7A8).copy(alpha = 0.38f)
+
+private fun DrawScope.drawDashedPolyline(points: List<Offset>, color: Color, width: Float) {
+    if (points.size < 2) return
+    val path = Path().apply {
+        moveTo(points.first().x, points.first().y)
+        points.drop(1).forEach { lineTo(it.x, it.y) }
+    }
+    drawPath(
+        path,
+        color,
+        style = Stroke(
+            width = width,
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(9f, 7f)),
+        ),
+    )
+}
 
 private fun DrawScope.drawPolyline(points: List<Offset>, color: Color, width: Float) {
     if (points.size < 2) return

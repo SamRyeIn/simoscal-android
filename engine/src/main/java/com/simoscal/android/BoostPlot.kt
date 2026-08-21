@@ -62,15 +62,38 @@ class BoostPlotScale(
     }
 
     companion object {
-        fun of(model: BoostCurveModel, draft: List<Double>): BoostPlotScale {
+        /**
+         * ``overlay`` widens the axes to fit a logged pull, when one is drawn.
+         *
+         * Both axes, and neither is optional. A pull that overshot the curves
+         * would otherwise be clipped at the top of the plot — hiding the
+         * overshoot, which is the single most important thing a boost trace has
+         * to say. And a pull that ran past the last slot breakpoint would be
+         * squeezed against the right frame, which would misplace *every* sample
+         * against the curves rather than only the ones off the end.
+         */
+        fun of(
+            model: BoostCurveModel,
+            draft: List<Double>,
+            overlay: OverlayPull? = null,
+        ): BoostPlotScale {
+            val overlaySamples = overlay?.series.orEmpty().flatMap { it.segments }
             val highest = maxOf(
                 model.refusalCeilingPsi,
                 draft.maxOrNull() ?: 0.0,
                 model.slots.flatMap { it.psi }.maxOrNull() ?: 0.0,
+                overlaySamples.flatMap { it.values }.maxOrNull() ?: 0.0,
             )
+            val overlayRpm = overlaySamples.flatMap { it.rpm }
             return BoostPlotScale(
-                rpmMin = model.rpmAxis.minOrNull() ?: 0.0,
-                rpmMax = model.rpmAxis.maxOrNull() ?: 1.0,
+                rpmMin = minOf(
+                    model.rpmAxis.minOrNull() ?: 0.0,
+                    overlayRpm.minOrNull() ?: Double.MAX_VALUE,
+                ),
+                rpmMax = maxOf(
+                    model.rpmAxis.maxOrNull() ?: 1.0,
+                    overlayRpm.maxOrNull() ?: Double.MIN_VALUE,
+                ),
                 // Headroom above the highest line so the refusal dash and the top
                 // of a curve are never drawn on the frame itself.
                 psiMax = if (highest > 0) highest * 1.12 else 1.0,

@@ -442,6 +442,79 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // ---------------------------------------------------------------- overlay
+
+    fun onOverlayPullSelected(index: Int) =
+        _state.update { it.copy(overlay = it.overlay.selectingPull(index)) }
+
+    fun clearOverlay() = _state.update { it.copy(overlay = it.overlay.cleared()) }
+
+    fun dismissOverlayNotice() = _state.update { it.copy(overlay = it.overlay.copy(notice = null)) }
+
+    /**
+     * Import a picked datalog and read its pulls, to draw one behind the curves.
+     *
+     * Two properties this method must not quietly lose:
+     *
+     * * It **holds no session**. `log_overlay` is sessionless, so this works with
+     *   no bin open at all, and — more importantly — it cannot touch the session
+     *   even when one exists. There is no `session_id` to send.
+     * * It **commits nothing**. No `history.commit()`, no journal read, no undo
+     *   point. Adding a call to either here would silently turn a read into part
+     *   of the edit history.
+     *
+     * The picked file is copied in first, exactly as the analyze flow does it, so
+     * the bytes are hashed and nothing downstream refers to a `content://` handle
+     * that may point at a Drive file which changes underneath the call.
+     */
+    fun onOverlayLogPicked(uri: Uri) {
+        viewModelScope.launch {
+            _state.update { it.copy(overlay = it.overlay.loading()) }
+
+            val imported = runCatching { imports.importFile(uri, InputKind.LOG) }
+            val file = imported.getOrElse { error ->
+                _state.update {
+                    it.copy(
+                        overlay = it.overlay.failed(
+                            (error as? ImportFailure)?.reason ?: "That log could not be imported.",
+                        ),
+                    )
+                }
+                return@launch
+            }
+
+            val outcome = bridge.call(
+                op = "log_overlay",
+                params = params {
+                    put("logs", JSONArray().apply {
+                        put(
+                            JSONObject()
+                                .putVerified("log", file)
+                                .put("display_name", file.displayName)
+                        )
+                    })
+                },
+            )
+            _state.update { state ->
+                when (outcome) {
+                    is BridgeOutcome.Ok -> state.copy(
+                        overlay = state.overlay.withModel(
+                            LogOverlayModel.fromJson(outcome.result),
+                            file.displayName,
+                        ),
+                    )
+                    // A log that cannot be read is a fact about that file, not a
+                    // failure of the app — it lands on the overlay's own notice
+                    // rather than the global error, so it does not read as
+                    // something that put the *session* in a bad state.
+                    is BridgeOutcome.Failed -> state.copy(
+                        overlay = state.overlay.failed(outcome.message),
+                    )
+                }
+            }
+        }
+    }
+
     /**
      * Commit the active slot's draft as one journaled boost edit.
      *
