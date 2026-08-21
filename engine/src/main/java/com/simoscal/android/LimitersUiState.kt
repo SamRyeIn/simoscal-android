@@ -59,6 +59,16 @@ data class LimiterValue(
  */
 data class LimitersModel(
     val speedLimiter: List<LimiterValue>,
+    /** The standstill rev cap — four transmission variants of one number. */
+    val staticRevLimit: List<LimiterValue>,
+    /**
+     * The engine's own rev limiter, which applies moving or stopped.
+     *
+     * Carried alongside the cap because the cap is unreadable without it: 3808
+     * says nothing until you know the engine itself stops at 6816, and a screen
+     * showing one without the other invites reading the cap as the redline.
+     */
+    val engineRevLimit: Double?,
     val revLimits: List<LimiterValue>?,
     val launchControl: List<LimiterValue>?,
 ) {
@@ -80,6 +90,22 @@ data class LimitersModel(
 
     fun rev(index: Int): Double? = revLimits?.getOrNull(index)?.value
 
+    /** The one number the four standstill scalars hold, or null if they differ. */
+    val staticRevRpm: Double?
+        get() {
+            val values = staticRevLimit.map { it.value }
+            if (values.isEmpty()) return null
+            return values.first().takeIf { first -> values.all { abs(it - first) < 1e-6 } }
+        }
+
+    /** Whether the cap is already at the limiter — nothing left to raise. */
+    val staticRevAtLimiter: Boolean
+        get() {
+            val cap = staticRevRpm ?: return false
+            val limit = engineRevLimit ?: return false
+            return cap >= limit - 1e-6
+        }
+
     companion object {
         /** Index of each cut level within [revLimits], in escalation order. */
         const val SOFT = 0
@@ -88,6 +114,12 @@ data class LimitersModel(
 
         fun fromJson(payload: JSONObject): LimitersModel = LimitersModel(
             speedLimiter = payload.limiterList("speed_limiter").orEmpty(),
+            staticRevLimit = payload.limiterList("static_rev_limit").orEmpty(),
+            engineRevLimit = if (payload.isNull("engine_rev_limit")) {
+                null
+            } else {
+                payload.optDouble("engine_rev_limit")
+            },
             revLimits = payload.limiterList("rev_limits"),
             launchControl = payload.limiterList("launch_control"),
         )
@@ -124,6 +156,8 @@ data class LimitersUiState(
     val revDraft: List<Double> = emptyList(),
     /** The staged road-speed limiter, in km/h. */
     val speedDraft: Double? = null,
+    /** The staged standstill rev cap, in rpm. */
+    val staticRevDraft: Double? = null,
     val loading: Boolean = false,
     val unavailable: String? = null,
     val notice: String? = null,
@@ -147,7 +181,21 @@ data class LimitersUiState(
             return abs(draft - committed) > 1e-9
         }
 
-    val dirty: Boolean get() = revDirty || speedDirty
+    val committedStaticRev: Double?
+        get() = model?.staticRevRpm
+
+    val staticRevDirty: Boolean
+        get() {
+            val draft = staticRevDraft ?: return false
+            val committed = committedStaticRev ?: return true
+            return abs(draft - committed) > 1e-9
+        }
+
+    /** The engine's rev limiter — the ceiling a standstill cap may not exceed. */
+    val engineRevLimit: Double?
+        get() = model?.engineRevLimit
+
+    val dirty: Boolean get() = revDirty || speedDirty || staticRevDirty
 
     val canApply: Boolean get() = model != null && dirty && !loading
 
@@ -160,6 +208,7 @@ fun LimitersUiState.withModel(loaded: LimitersModel): LimitersUiState = copy(
     model = loaded,
     revDraft = loaded.revLimits?.map { it.value }.orEmpty(),
     speedDraft = loaded.speedKmh,
+    staticRevDraft = loaded.staticRevRpm,
     loading = false,
     unavailable = null,
     notice = null,
@@ -256,8 +305,37 @@ fun LimitersUiState.rejectTypedSpeed(kmh: Double): String? = when {
 fun LimitersUiState.discardingDraft(): LimitersUiState = copy(
     revDraft = committedRev,
     speedDraft = committedSpeed,
+    staticRevDraft = committedStaticRev,
     notice = null,
 )
+
+/** Set the standstill rev cap from typed input: validated, never clamped. */
+fun LimitersUiState.withTypedStaticRev(rpm: Double): LimitersUiState {
+    val refusal = rejectTypedStaticRev(rpm)
+    if (refusal != null) return copy(notice = refusal)
+    return copy(staticRevDraft = rpm, notice = null)
+}
+
+/**
+ * Why a typed standstill cap cannot be used, or null if it can.
+ *
+ * The ceiling is the engine's *own* rev limiter, not the field's range. A cap
+ * above the limiter could never be reached, so it would change nothing except
+ * what the calibration appears to say — and asking for one is a sign of
+ * expecting this control to raise the redline, which it does not do.
+ */
+fun LimitersUiState.rejectTypedStaticRev(rpm: Double): String? {
+    if (rpm.isNaN() || rpm.isInfinite()) return "Enter an engine speed in rpm."
+    if (rpm <= 0) return "A rev cap cannot be zero or negative."
+    val limit = engineRevLimit
+    if (limit != null && rpm > limit + 1e-6) {
+        return "${rpm.display("%.0f")} rpm is above this engine's own rev limiter of " +
+            "${limit.display("%.0f")} rpm, which applies whether the car is moving or " +
+            "not. A standstill cap above it could never be reached. Raising the rev " +
+            "limiter itself is a separate change this control does not make."
+    }
+    return null
+}
 
 /** Snap to [REV_STEP_RPM]. Applied to drags only — a typed number is taken as typed. */
 fun snapToRevStep(rpm: Double): Double =

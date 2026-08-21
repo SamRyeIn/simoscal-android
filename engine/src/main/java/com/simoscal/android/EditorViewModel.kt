@@ -709,6 +709,9 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     fun onSpeedLimiterTyped(kmh: Double) =
         _state.update { it.copy(limiters = it.limiters.withTypedSpeed(kmh)) }
 
+    fun onStaticRevLimitTyped(rpm: Double) =
+        _state.update { it.copy(limiters = it.limiters.withTypedStaticRev(rpm)) }
+
     fun onLimitersDiscard() =
         _state.update { it.copy(limiters = it.limiters.discardingDraft()) }
 
@@ -768,6 +771,9 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                     }
                     if (limiters.speedDirty) {
                         put("speed_limiter_kmh", limiters.speedDraft)
+                    }
+                    if (limiters.staticRevDirty) {
+                        put("static_rev_limit_rpm", limiters.staticRevDraft)
                     }
                 },
             )

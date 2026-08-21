@@ -80,6 +80,7 @@ fun LimitersScreen(viewModel: EditorViewModel) {
 
     var editing by remember { mutableStateOf<Int?>(null) }
     var speedEditing by remember { mutableStateOf(false) }
+    var staticRevEditing by remember { mutableStateOf(false) }
     // Saveable for the same reason the boost editor's is: a half-written reason
     // for a calibration change must survive a rotation.
     var intent by rememberSaveable { mutableStateOf("") }
@@ -106,6 +107,11 @@ fun LimitersScreen(viewModel: EditorViewModel) {
                     limiters = limiters,
                     onDrag = viewModel::onRevDragged,
                     onType = { editing = it },
+                )
+
+                StaticRevSection(
+                    limiters = limiters,
+                    onEdit = { staticRevEditing = true },
                 )
 
                 SpeedLimiterSection(
@@ -181,6 +187,22 @@ fun LimitersScreen(viewModel: EditorViewModel) {
             onConfirm = { rpm ->
                 viewModel.onRevTyped(index, rpm)
                 editing = null
+            },
+        )
+    }
+
+    if (staticRevEditing) {
+        NumericEntryDialog(
+            title = "Rev limit while stopped",
+            supporting = "rpm. The engine's own rev limiter is " +
+                "${limiters.engineRevLimit?.display("%.0f") ?: "—"} rpm and applies " +
+                "whether the car is moving or not — a cap above it could never be " +
+                "reached. Stored in 32 rpm steps.",
+            initial = limiters.staticRevDraft?.display("%.0f") ?: "",
+            onDismiss = { staticRevEditing = false },
+            onConfirm = { rpm ->
+                viewModel.onStaticRevLimitTyped(rpm)
+                staticRevEditing = false
             },
         )
     }
@@ -270,6 +292,61 @@ private fun RevTrioSection(
                         .clickable { onType(index) },
                 )
             }
+        }
+    }
+}
+
+/**
+ * The standstill rev cap, shown against the limiter it sits under.
+ *
+ * Both numbers, always. The cap alone is unreadable — "3808 rpm" says nothing
+ * until you know the engine itself stops at 6816 — and a control that showed
+ * only the cap would invite reading it as the redline and then "raising the
+ * redline" by moving it.
+ */
+@Composable
+private fun StaticRevSection(limiters: LimitersUiState, onEdit: () -> Unit) {
+    Panel(tone = if (limiters.staticRevDirty) PanelTone.Accent else PanelTone.Neutral) {
+        PanelTitle(
+            "Rev limit while stopped",
+            tone = if (limiters.staticRevDirty) PanelTone.Accent else PanelTone.Neutral,
+        )
+        Text(
+            "How high the engine will rev in park or neutral. Separate from — and " +
+                "lower than — the rev limiter itself, which applies moving or not. " +
+                "Raising this does not raise what the engine will reach; it lets the " +
+                "limiter be what catches you in park, as it already is in gear.",
+            style = MaterialTheme.typography.bodySmall,
+            color = PromoPalette.TextDim,
+        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        ) {
+            Text(
+                limiters.staticRevDraft?.let { "${it.display("%.0f")} rpm" } ?: "—",
+                style = MaterialTheme.typography.headlineSmall,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clickable { onEdit() },
+            )
+            Text(
+                limiters.engineRevLimit?.let { "  of ${it.display("%.0f")} rpm limiter" }
+                    ?: "",
+                style = MaterialTheme.typography.bodyMedium,
+                color = PromoPalette.TextFaint,
+                modifier = Modifier.weight(1f),
+            )
+            PromoOutlinedButton(onClick = onEdit) { Text("Set") }
+        }
+
+        if (limiters.model?.staticRevAtLimiter == true) {
+            Text(
+                "Already at the limiter — the engine will rev as freely stopped as " +
+                    "it does in gear.",
+                style = MaterialTheme.typography.bodySmall,
+                color = PanelTone.Good.ink,
+            )
         }
     }
 }

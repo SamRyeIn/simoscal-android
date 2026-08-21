@@ -26,6 +26,8 @@ class LimitersUiStateTest {
         hard: Double = 64.0,
         speeds: List<Double> = List(4) { 200.0 },
         withPatch: Boolean = true,
+        staticRev: Double = 3808.0,
+        engineRevLimit: Double = 6816.0,
     ): JSONObject {
         fun scalar(name: String, value: Double, units: String, owner: String) =
             """{"name":"$name","label":"`x` — $name","description":"$name",
@@ -48,8 +50,17 @@ class LimitersUiStateTest {
             ${scalar("lc_release_speed", 3.0, "km/h", "")}
         ]"""
 
+        val static = listOf(
+            "static_rev_limit_dct", "static_rev_limit_at",
+            "static_rev_limit_mt", "static_rev_limit_cvt",
+        ).joinToString(",") {
+            scalar(it, staticRev, "rpm", "tune.limits.static_rev_limit()")
+        }
+
         return JSONObject(
-            """{"speed_limiter":[$quartet],"rev_limits":$rev,"launch_control":$lc}"""
+            """{"speed_limiter":[$quartet],"static_rev_limit":[$static],
+                "engine_rev_limit":$engineRevLimit,
+                "rev_limits":$rev,"launch_control":$lc}"""
         )
     }
 
@@ -59,8 +70,12 @@ class LimitersUiStateTest {
         hard: Double = 64.0,
         speeds: List<Double> = List(4) { 200.0 },
         withPatch: Boolean = true,
+        staticRev: Double = 3808.0,
+        engineRevLimit: Double = 6816.0,
     ) = LimitersUiState().withModel(
-        LimitersModel.fromJson(payload(soft, medium, hard, speeds, withPatch))
+        LimitersModel.fromJson(
+            payload(soft, medium, hard, speeds, withPatch, staticRev, engineRevLimit)
+        )
     )
 
     // ------------------------------------------------------------------ reading
@@ -244,5 +259,75 @@ class LimitersUiStateTest {
         val editor = EditorUiState(sessionId = "s1", limiters = loaded())
         assertNull(editor.dirtyDraft)
         assertTrue(editor.canMutateSession)
+    }
+
+    // ------------------------------------------------- the standstill rev cap
+
+    @Test
+    fun `the standstill cap loads with the limiter it sits under`() {
+        val state = loaded()
+
+        assertEquals(3808.0, state.staticRevDraft!!, 1e-9)
+        assertEquals(6816.0, state.engineRevLimit!!, 1e-9)
+        assertFalse("stock is well below the limiter", state.model!!.staticRevAtLimiter)
+    }
+
+    @Test
+    fun `raising the cap to the limiter stages cleanly`() {
+        val state = loaded().withTypedStaticRev(6816.0)
+
+        assertEquals(6816.0, state.staticRevDraft!!, 1e-9)
+        assertTrue(state.staticRevDirty)
+        assertTrue(state.canApply)
+        assertNull(state.notice)
+    }
+
+    @Test
+    fun `a cap above the engines own limiter is refused, not clamped`() {
+        // It could never be reached, so it would change nothing except what the
+        // calibration appears to say — and asking for it suggests expecting this
+        // control to raise the redline, which it does not do.
+        val state = loaded()
+        val refused = state.withTypedStaticRev(7200.0)
+
+        assertEquals(3808.0, refused.staticRevDraft!!, 1e-9)
+        val notice = refused.notice
+        assertNotNull(notice)
+        assertTrue(notice!!.contains("rev limiter"))
+        assertTrue(notice.contains("6816"))
+    }
+
+    @Test
+    fun `a cap already at the limiter says so`() {
+        val state = loaded(staticRev = 6816.0)
+        assertTrue(state.model!!.staticRevAtLimiter)
+    }
+
+    @Test
+    fun `with no limiter reported the cap is not second-guessed`() {
+        // A bin whose rev limiter did not resolve leaves the ceiling unknown.
+        // Inventing one would be worse than letting the engine refuse.
+        val model = LimitersModel.fromJson(
+            JSONObject(
+                """{"speed_limiter":[],"static_rev_limit":[],
+                    "engine_rev_limit":null,"rev_limits":null,"launch_control":null}"""
+            )
+        )
+        val state = LimitersUiState().withModel(model)
+        assertNull(state.engineRevLimit)
+        assertNull(state.rejectTypedStaticRev(7200.0))
+    }
+
+    @Test
+    fun `a zero or negative cap is refused`() {
+        assertNotNull(loaded().rejectTypedStaticRev(0.0))
+        assertNotNull(loaded().rejectTypedStaticRev(-100.0))
+    }
+
+    @Test
+    fun `discard returns the standstill cap too`() {
+        val state = loaded().withTypedStaticRev(6816.0).discardingDraft()
+        assertEquals(3808.0, state.staticRevDraft!!, 1e-9)
+        assertFalse(state.dirty)
     }
 }
