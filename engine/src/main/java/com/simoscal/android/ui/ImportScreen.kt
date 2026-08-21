@@ -39,7 +39,11 @@ import java.util.Date
  * ahead: "Open session" only exists once [PreflightState.Passed] is on state.
  */
 @Composable
-fun ImportScreen(viewModel: EditorViewModel, recoverable: RecoveryPointer?) {
+fun ImportScreen(
+    viewModel: EditorViewModel,
+    recoverable: RecoveryPointer?,
+    onAnalyze: () -> Unit,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     val binPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -132,6 +136,35 @@ fun ImportScreen(viewModel: EditorViewModel, recoverable: RecoveryPointer?) {
         // A Blocked verdict is handled by the non-dismissible dialog in
         // SimoscalApp — nothing about it is rendered inline here, so this
         // screen never offers a second, quieter way past the same dead end.
+
+        // Below the session flow, and reachable without one: analysing a datalog
+        // needs no bin, no XDF and no preflight. This is the only way to reach it
+        // when no session is open, because the navigation bar that carries the
+        // other entry point does not exist until one is.
+        HairRule()
+        AnalyzeRow(onAnalyze = onAnalyze)
+    }
+}
+
+/**
+ * The entry into datalog analysis — the other half of the tuning loop.
+ *
+ * Placed on the landing screen rather than only in the navigation bar because it
+ * is where the loop actually restarts: a person opens the app after a drive to
+ * find out whether the last flash worked, and at that moment they have logs and
+ * no session.
+ */
+@Composable
+private fun AnalyzeRow(onAnalyze: () -> Unit) {
+    Panel(spacing = 8.dp) {
+        Kicker("Datalogs", color = PromoPalette.TextFaint)
+        PanelTitle("Analyze a drive")
+        Caption(
+            "Run the check battery over SimosTools CSVs: knock, boost tracking, lambda, " +
+                "fuel pressure and turbo heat, with the evidence plots behind each finding. " +
+                "Needs no bin and changes nothing.",
+        )
+        PromoOutlinedButton(onClick = onAnalyze) { Text("Analyze datalogs") }
     }
 }
 

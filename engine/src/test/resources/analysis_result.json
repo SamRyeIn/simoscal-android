@@ -1,0 +1,2955 @@
+{
+ "battery": [
+  {
+   "description": "Per-cylinder knock retard magnitude, location, and recurrence.",
+   "id": "knock",
+   "needs_cal": false,
+   "optional_channels": [
+    "airmass",
+    "rpm"
+   ],
+   "required_channels": [
+    "knock_1",
+    "knock_2",
+    "knock_3",
+    "knock_4"
+   ],
+   "thresholds": {
+    "high_deg": -3.0,
+    "watch_deg": -1.5
+   },
+   "title": "Knock retard"
+  },
+  {
+   "description": "PUT vs PUT setpoint overshoot, reported as contiguous zones (transient spike vs sustained ridge).",
+   "id": "boost",
+   "needs_cal": false,
+   "optional_channels": [
+    "rpm"
+   ],
+   "required_channels": [
+    "put",
+    "put_sp"
+   ],
+   "thresholds": {
+    "high_kpa": 20.0,
+    "sustained_mean_kpa": 15.0,
+    "sustained_s": 0.5,
+    "watch_kpa": 10.0
+   },
+   "title": "Boost tracking"
+  },
+  {
+   "description": "Wastegate authority on the overshoot samples: integral driven to its opening clamp while boost still overshoots.",
+   "id": "wastegate",
+   "needs_cal": false,
+   "optional_channels": [
+    "wg_pos_base",
+    "wg_i_value",
+    "wg_pd_value"
+   ],
+   "required_channels": [
+    "wg_pos_final",
+    "put",
+    "put_sp"
+   ],
+   "thresholds": {
+    "saturation_pct": 99.0,
+    "wg_i_clamp_watch_pct": -20.0
+   },
+   "title": "Wastegate duty"
+  },
+  {
+   "description": "Settled-WOT lambda lean error vs the +0.03 watch line; transients excluded.",
+   "id": "lambda",
+   "needs_cal": false,
+   "optional_channels": [
+    "torque",
+    "torque_req",
+    "airmass"
+   ],
+   "required_channels": [
+    "lambda",
+    "lambda_sp"
+   ],
+   "thresholds": {
+    "high": 0.05,
+    "settled_torque_min_nm": 250.0,
+    "watch": 0.03
+   },
+   "title": "Lambda"
+  },
+  {
+   "description": "DI rail sag under demand plus LPFP/HPFP headroom.",
+   "id": "rail_pressure",
+   "needs_cal": false,
+   "optional_channels": [
+    "lpfp_duty",
+    "hpfp_eff_vol"
+   ],
+   "required_channels": [
+    "fp_di",
+    "fp_di_sp"
+   ],
+   "thresholds": {
+    "hpfp_watch_pct": 95.0,
+    "lpfp_watch_pct": 85.0,
+    "sag_high_bar": -25.0,
+    "sag_watch_bar": -10.0
+   },
+   "title": "Rail pressure and pump headroom"
+  },
+  {
+   "description": "Delivered ignition envelope under loaded WOT; cross-references knock (when live) or the torque limiter for local pull-back.",
+   "id": "timing",
+   "needs_cal": false,
+   "optional_channels": [
+    "airmass",
+    "tps",
+    "knock_1",
+    "knock_2",
+    "knock_3",
+    "knock_4",
+    "torque_lim"
+   ],
+   "required_channels": [
+    "ign_avg"
+   ],
+   "thresholds": {},
+   "title": "Timing envelope"
+  },
+  {
+   "description": "Turbo speed, turbo-air/intake temps, and coolant/oil sanity.",
+   "id": "turbo_heat",
+   "needs_cal": false,
+   "optional_channels": [
+    "turbo_speed",
+    "turbo_air_temp",
+    "coolant_temp",
+    "oil_temp"
+   ],
+   "required_channels": [
+    "iat"
+   ],
+   "thresholds": {
+    "iat_watch_c": 50.0,
+    "turbo_air_temp_watch_c": 150.0,
+    "turbo_limit_krpm": 220.0,
+    "turbo_watch_krpm": 190.0
+   },
+   "title": "Turbo and heat"
+  },
+  {
+   "description": "Torque-limiter source activity and any settled-WOT torque collapse, correlated with timing retard and boost error.",
+   "id": "torque_limiter",
+   "needs_cal": false,
+   "optional_channels": [
+    "torque_lim",
+    "ign_avg",
+    "put",
+    "put_sp"
+   ],
+   "required_channels": [
+    "torque",
+    "torque_req"
+   ],
+   "thresholds": {},
+   "title": "Torque limiter"
+  },
+  {
+   "description": "Surfaces the load-quality preflight (gaps, stuck channels, unmapped units, short rows) as findings.",
+   "id": "data_quality",
+   "needs_cal": false,
+   "optional_channels": [],
+   "required_channels": [],
+   "thresholds": {},
+   "title": "Data quality"
+  },
+  {
+   "description": "Peak demanded manifold-pressure setpoint vs the flashed `C_PRS_IM_SP_MAX` ceiling (hPa->kPa; read-only).",
+   "id": "boost_cal",
+   "needs_cal": true,
+   "optional_channels": [
+    "map_sp"
+   ],
+   "required_channels": [
+    "put_sp"
+   ],
+   "thresholds": {
+    "symbol": "C_PRS_IM_SP_MAX"
+   },
+   "title": "Boost vs calibrated ceiling"
+  },
+  {
+   "description": "Logged PUT-minus-ambient vs the flashed `IP_PUT_AMP_DIF_MAX_PRS_DIF_THR` P0234 threshold (hPa; read-only).",
+   "id": "boost_p0234",
+   "needs_cal": true,
+   "optional_channels": [
+    "ambient_press",
+    "rpm"
+   ],
+   "required_channels": [
+    "put"
+   ],
+   "thresholds": {
+    "symbol": "IP_PUT_AMP_DIF_MAX_PRS_DIF_THR"
+   },
+   "title": "P0234 overboost margin"
+  }
+ ],
+ "cal_resolved": false,
+ "findings": [
+  {
+   "check_id": "boost",
+   "evidence": {
+    "high_pulls": [
+     1
+    ],
+    "peak_overshoot_kpa": 25.0,
+    "peak_put_kpa": 256.6,
+    "peak_rpm": 3280.0,
+    "zones": [
+     {
+      "duration_s": 1.3,
+      "mean_kpa": 25.0,
+      "n_samples": 26,
+      "peak_kpa": 25.0,
+      "peak_rpm": 3280.0,
+      "pull": 1,
+      "rpm_hi": 6500.0,
+      "rpm_lo": 3000.0,
+      "sustained": true
+     }
+    ]
+   },
+   "message": "PUT overshoots setpoint by up to +25.0 kPa (peak PUT 256.6 kPa) near 3280 rpm; primary zone \u2014 sustained ridge at 3000-6500 rpm: mean +25.0 / peak +25.0 kPa over 1.30 s (pull 1)",
+   "plot_refs": [],
+   "pull_refs": [
+    1
+   ],
+   "severity": "High",
+   "title": "Boost tracking"
+  },
+  {
+   "check_id": "knock",
+   "evidence": {
+    "channel_moved": true,
+    "recurrence_pulls": [
+     1
+    ],
+    "worst_pull": 1,
+    "worst_retard_deg": -3.5,
+    "worst_rpm": 3000.0
+   },
+   "message": "knock retard reaches -3.5 deg near 3000 rpm",
+   "plot_refs": [],
+   "pull_refs": [
+    1
+   ],
+   "severity": "High",
+   "title": "Knock retard"
+  },
+  {
+   "check_id": "lambda",
+   "evidence": {
+    "max_settled_lean_error": 0.0,
+    "pull": 1,
+    "rpm": 3000.0,
+    "watch_line": 0.03
+   },
+   "message": "settled-WOT lambda tracks target (max lean +0.000, below the +0.03 watch line)",
+   "plot_refs": [],
+   "pull_refs": [],
+   "severity": "Low",
+   "title": "Lambda"
+  },
+  {
+   "check_id": "rail_pressure",
+   "evidence": {
+    "max_hpfp_pct": 90.0,
+    "max_lpfp_pct": 70.0,
+    "worst_di_sag_bar": 0.0
+   },
+   "message": "fuel supply OK: worst DI rail sag 0.0 bar; LPFP duty peaks 70.0%; HPFP eff. volume peaks 90.0%",
+   "plot_refs": [],
+   "pull_refs": [
+    1
+   ],
+   "severity": "Low",
+   "title": "Rail pressure and pump headroom"
+  },
+  {
+   "check_id": "timing",
+   "evidence": {
+    "ign_max_deg": 8.0,
+    "ign_mean_deg": 8.0,
+    "ign_min_deg": 8.0,
+    "knock_active": true,
+    "n_samples": 52,
+    "sample_mask": "loaded WOT: airmass >= 900 mg/stk and TPS >= 60%",
+    "torque_lim_active": false
+   },
+   "message": "delivered timing over loaded WOT: airmass >= 900 mg/stk and TPS >= 60% spans 8.0 to 8.0 deg (mean 8.0, n=52); cross-reference the knock finding for local pull-back",
+   "plot_refs": [],
+   "pull_refs": [],
+   "severity": "Low",
+   "title": "Timing envelope"
+  },
+  {
+   "check_id": "turbo_heat",
+   "evidence": {
+    "coolant_max_c": 95.0,
+    "iat_max_c": 25.0,
+    "oil_max_c": null,
+    "turbo_air_temp_c": null,
+    "turbo_speed_krpm": 180.0
+   },
+   "message": "turbo and temps OK: turbo speed peaks 180 krpm; IAT peaks 25 C; coolant peaks 95 C",
+   "plot_refs": [],
+   "pull_refs": [],
+   "severity": "Low",
+   "title": "Turbo and heat"
+  },
+  {
+   "check_id": "wastegate",
+   "evidence": {
+    "max_wg_final_pct": 78.0,
+    "wg_final_min_during_overshoot_pct": 45.0,
+    "wg_i_min_during_overshoot_pct": -2.0,
+    "worst_overshoot_kpa": 25.0
+   },
+   "message": "boost overshoots by up to +25.0 kPa but the wastegate integral has headroom, WG integral min -2.0%; final command at 45.0% there",
+   "plot_refs": [],
+   "pull_refs": [
+    1
+   ],
+   "severity": "Low",
+   "title": "Wastegate duty"
+  }
+ ],
+ "folder": "tmp1ol2l_gm",
+ "logs": [
+  {
+   "gear_resolution": "actual",
+   "interval_median_s": 0.05,
+   "n_gaps": 0,
+   "n_rows": 82,
+   "n_short_rows": 0,
+   "name": "simostools-fault.csv",
+   "stuck_channels": [],
+   "unmapped_count": 1
+  }
+ ],
+ "plots": [
+  {
+   "description": "Gauge boost (PUT minus ambient) and absolute PUT against their setpoints, plus the PUT-minus-setpoint error, all against engine speed.",
+   "drawn": true,
+   "id": "boost",
+   "panels": [
+    {
+     "drawn": true,
+     "series": [
+      {
+       "label": "Boost",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          22.335812560181598,
+          22.451842755299428,
+          22.567872950417254,
+          22.683903145535073,
+          22.799933340652903,
+          22.91596353577073,
+          23.03199373088856,
+          23.14802392600639,
+          23.264054121124207,
+          23.380084316242034,
+          23.496114511359863,
+          23.61214470647769,
+          23.72817490159552,
+          23.84420509671334,
+          23.960235291831168,
+          24.076265486948994,
+          24.192295682066824,
+          24.30832587718465,
+          24.424356072302473,
+          24.5403862674203,
+          24.65641646253813,
+          24.772446657655955,
+          24.888476852773785,
+          25.004507047891604,
+          25.120537243009434,
+          25.23656743812726
+         ]
+        }
+       ],
+       "source": "boost"
+      },
+      {
+       "label": "Boost",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          18.70986896274952,
+          18.825899157867347,
+          18.941929352985174,
+          19.057959548103,
+          19.173989743220826,
+          19.290019938338652,
+          19.406050133456482,
+          19.522080328574305,
+          19.638110523692134,
+          19.754140718809957,
+          19.870170913927787,
+          19.986201109045613,
+          20.10223130416344,
+          20.218261499281265,
+          20.334291694399088,
+          20.450321889516918,
+          20.566352084634747,
+          20.68238227975257,
+          20.798412474870396,
+          20.914442669988222,
+          21.03047286510605,
+          21.14650306022388,
+          21.2625332553417,
+          21.37856345045953,
+          21.494593645577353,
+          21.610623840695183
+         ]
+        }
+       ],
+       "source": "boost"
+      },
+      {
+       "label": "Boost SP",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "reference",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          18.70986896274952,
+          18.825899157867347,
+          18.941929352985174,
+          19.057959548103,
+          19.173989743220826,
+          19.290019938338652,
+          19.406050133456482,
+          19.522080328574305,
+          19.638110523692134,
+          19.754140718809957,
+          19.870170913927787,
+          19.986201109045613,
+          20.10223130416344,
+          20.218261499281265,
+          20.334291694399088,
+          20.450321889516918,
+          20.566352084634747,
+          20.68238227975257,
+          20.798412474870396,
+          20.914442669988222,
+          21.03047286510605,
+          21.14650306022388,
+          21.2625332553417,
+          21.37856345045953,
+          21.494593645577353,
+          21.610623840695183
+         ]
+        }
+       ],
+       "source": "boost_sp"
+      },
+      {
+       "label": "Boost SP",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "reference",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          18.70986896274952,
+          18.825899157867347,
+          18.941929352985174,
+          19.057959548103,
+          19.173989743220826,
+          19.290019938338652,
+          19.406050133456482,
+          19.522080328574305,
+          19.638110523692134,
+          19.754140718809957,
+          19.870170913927787,
+          19.986201109045613,
+          20.10223130416344,
+          20.218261499281265,
+          20.334291694399088,
+          20.450321889516918,
+          20.566352084634747,
+          20.68238227975257,
+          20.798412474870396,
+          20.914442669988222,
+          21.03047286510605,
+          21.14650306022388,
+          21.2625332553417,
+          21.37856345045953,
+          21.494593645577353,
+          21.610623840695183
+         ]
+        }
+       ],
+       "source": "boost_sp"
+      }
+     ],
+     "thresholds": [],
+     "title": "Gauge boost actual vs setpoint (loaded WOT)",
+     "x_label": "Engine speed (rpm)",
+     "y_label": "Boost / Boost SP (psi)"
+    },
+    {
+     "drawn": true,
+     "series": [
+      {
+       "label": "PUT",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          255.0,
+          255.8,
+          256.6,
+          257.4,
+          258.2,
+          259.0,
+          259.8,
+          260.6,
+          261.4,
+          262.2,
+          263.0,
+          263.8,
+          264.6,
+          265.4,
+          266.2,
+          267.0,
+          267.8,
+          268.6,
+          269.4,
+          270.2,
+          271.0,
+          271.8,
+          272.6,
+          273.4,
+          274.2,
+          275.0
+         ]
+        }
+       ],
+       "source": "put"
+      },
+      {
+       "label": "PUT",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          230.0,
+          230.8,
+          231.6,
+          232.4,
+          233.2,
+          234.0,
+          234.8,
+          235.6,
+          236.4,
+          237.2,
+          238.0,
+          238.8,
+          239.6,
+          240.4,
+          241.2,
+          242.0,
+          242.8,
+          243.6,
+          244.4,
+          245.2,
+          246.0,
+          246.8,
+          247.6,
+          248.4,
+          249.2,
+          250.0
+         ]
+        }
+       ],
+       "source": "put"
+      },
+      {
+       "label": "PUT SP",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "reference",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          230.0,
+          230.8,
+          231.6,
+          232.4,
+          233.2,
+          234.0,
+          234.8,
+          235.6,
+          236.4,
+          237.2,
+          238.0,
+          238.8,
+          239.6,
+          240.4,
+          241.2,
+          242.0,
+          242.8,
+          243.6,
+          244.4,
+          245.2,
+          246.0,
+          246.8,
+          247.6,
+          248.4,
+          249.2,
+          250.0
+         ]
+        }
+       ],
+       "source": "put_sp"
+      },
+      {
+       "label": "PUT SP",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "reference",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          230.0,
+          230.8,
+          231.6,
+          232.4,
+          233.2,
+          234.0,
+          234.8,
+          235.6,
+          236.4,
+          237.2,
+          238.0,
+          238.8,
+          239.6,
+          240.4,
+          241.2,
+          242.0,
+          242.8,
+          243.6,
+          244.4,
+          245.2,
+          246.0,
+          246.8,
+          247.6,
+          248.4,
+          249.2,
+          250.0
+         ]
+        }
+       ],
+       "source": "put_sp"
+      }
+     ],
+     "thresholds": [],
+     "title": "PUT actual vs setpoint (loaded WOT)",
+     "x_label": "Engine speed (rpm)",
+     "y_label": "PUT / PUT SP (kPa)"
+    },
+    {
+     "drawn": true,
+     "series": [
+      {
+       "label": "",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          25.0,
+          25.0,
+          25.00000000000003,
+          24.99999999999997,
+          25.0,
+          25.0,
+          25.0,
+          25.00000000000003,
+          24.99999999999997,
+          25.0,
+          25.0,
+          25.0,
+          25.00000000000003,
+          24.99999999999997,
+          25.0,
+          25.0,
+          25.0,
+          25.00000000000003,
+          24.99999999999997,
+          25.0,
+          25.0,
+          25.0,
+          25.00000000000003,
+          24.99999999999997,
+          25.0,
+          25.0
+         ]
+        }
+       ],
+       "source": "put_error"
+      },
+      {
+       "label": "",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ]
+        }
+       ],
+       "source": "put_error"
+      }
+     ],
+     "thresholds": [
+      {
+       "label": "",
+       "tone": "zero",
+       "value": 0.0
+      },
+      {
+       "label": "+10 watch",
+       "tone": "watch",
+       "value": 10.0
+      },
+      {
+       "label": "+20 high",
+       "tone": "high",
+       "value": 20.0
+      }
+     ],
+     "title": "PUT overshoot",
+     "x_label": "Engine speed (rpm)",
+     "y_label": "PUT - PUT SP (kPa)"
+    }
+   ],
+   "tip": "Solid is what the turbo actually delivered; dashed is what the ECU asked for. Where the solid line runs above the dashed one, boost is overshooting the setpoint \u2014 read the error panel underneath to see by how much, and whether it is a brief spike on the way up or a ridge that holds across the pull. A ridge is the one that matters.",
+   "title": "Boost tracking"
+  },
+  {
+   "description": "Ignition advance the engine actually ran (Ign Avg) against the advance the table asked for (Ign Table), over loaded WOT samples vs engine speed.",
+   "drawn": true,
+   "id": "ignition",
+   "panels": [
+    {
+     "drawn": true,
+     "series": [
+      {
+       "label": "Ign Avg",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0
+         ]
+        }
+       ],
+       "source": "ign_avg"
+      },
+      {
+       "label": "Ign Avg",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0,
+          8.0
+         ]
+        }
+       ],
+       "source": "ign_avg"
+      },
+      {
+       "label": "Ign Table",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "reference",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0
+         ]
+        }
+       ],
+       "source": "ign_table"
+      },
+      {
+       "label": "Ign Table",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "reference",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0,
+          11.0
+         ]
+        }
+       ],
+       "source": "ign_table"
+      }
+     ],
+     "thresholds": [],
+     "title": "Delivered vs table timing (loaded WOT)",
+     "x_label": "Engine speed (rpm)",
+     "y_label": "Ignition advance (deg)"
+    }
+   ],
+   "tip": "The gap between the two lines is timing the ECU pulled back out. A steady offset across the whole pull is ordinary correction; a notch that appears at one rpm and comes back on every pull is worth cross-checking against the knock plot before it is called a fuel issue.",
+   "title": "Delivered vs table timing"
+  },
+  {
+   "description": "The most-retarded cylinder at each sample \u2014 the minimum across all four per-cylinder knock channels \u2014 over loaded WOT samples vs engine speed.",
+   "drawn": true,
+   "id": "knock",
+   "panels": [
+    {
+     "drawn": true,
+     "series": [
+      {
+       "label": "",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5,
+          -3.5
+         ]
+        }
+       ],
+       "source": "min_knock"
+      },
+      {
+       "label": "",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ]
+        }
+       ],
+       "source": "min_knock"
+      }
+     ],
+     "thresholds": [
+      {
+       "label": "",
+       "tone": "zero",
+       "value": 0.0
+      },
+      {
+       "label": "-1.5 watch",
+       "tone": "watch",
+       "value": -1.5
+      },
+      {
+       "label": "-3.0 high",
+       "tone": "high",
+       "value": -3.0
+      }
+     ],
+     "title": "Most-retarded cylinder (loaded WOT)",
+     "x_label": "Engine speed (rpm)",
+     "y_label": "Knock retard (deg)"
+    }
+   ],
+   "tip": "Watch where the line dives, not how much it wiggles. Retard that lands at the same rpm on every pull is the calibration asking for more timing than the fuel will carry there; a single dip that never repeats is more often a bad tank or a heat-soaked run than a table problem.",
+   "title": "Knock retard"
+  },
+  {
+   "description": "Measured lambda minus the lambda setpoint over settled WOT samples vs engine speed. The faint dots are loaded-but-transient samples \u2014 shift recovery and torque cuts \u2014 shown for context and excluded from the lines.",
+   "drawn": true,
+   "id": "lambda",
+   "panels": [
+    {
+     "drawn": true,
+     "series": [
+      {
+       "label": "",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ]
+        }
+       ],
+       "source": "lambda_error"
+      },
+      {
+       "label": "",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ]
+        }
+       ],
+       "source": "lambda_error"
+      }
+     ],
+     "thresholds": [
+      {
+       "label": "",
+       "tone": "zero",
+       "value": 0.0
+      },
+      {
+       "label": "+0.03 lean watch",
+       "tone": "watch",
+       "value": 0.03
+      }
+     ],
+     "title": "Settled-WOT lambda error",
+     "x_label": "Engine speed (rpm)",
+     "y_label": "Lambda - Lambda SP"
+    }
+   ],
+   "tip": "Above the zero line is lean of target. An error that climbs steadily with rpm usually means the fuel system is running out of capacity rather than that the target is wrong, so read the rail-pressure plot before changing anything in fuelling.",
+   "title": "Lambda error"
+  },
+  {
+   "description": "Direct-injection rail pressure minus its setpoint (top), and low-pressure pump duty alongside high-pressure pump effective volume (bottom), both over loaded WOT samples vs engine speed.",
+   "drawn": true,
+   "id": "rail_pressure",
+   "panels": [
+    {
+     "drawn": true,
+     "series": [
+      {
+       "label": "",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ]
+        }
+       ],
+       "source": "di_error"
+      },
+      {
+       "label": "",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ]
+        }
+       ],
+       "source": "di_error"
+      }
+     ],
+     "thresholds": [
+      {
+       "label": "",
+       "tone": "zero",
+       "value": 0.0
+      }
+     ],
+     "title": "DI rail pressure error (loaded WOT)",
+     "x_label": "Engine speed (rpm)",
+     "y_label": "FP DI - FP DI SP (bar)"
+    },
+    {
+     "drawn": true,
+     "series": [
+      {
+       "label": "LPFP",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0
+         ]
+        }
+       ],
+       "source": "lpfp_duty"
+      },
+      {
+       "label": "LPFP",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0,
+          70.0
+         ]
+        }
+       ],
+       "source": "lpfp_duty"
+      },
+      {
+       "label": "HPFP",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "secondary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0
+         ]
+        }
+       ],
+       "source": "hpfp_eff_vol"
+      },
+      {
+       "label": "HPFP",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "secondary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0,
+          90.0
+         ]
+        }
+       ],
+       "source": "hpfp_eff_vol"
+      }
+     ],
+     "thresholds": [
+      {
+       "label": "85% LPFP",
+       "tone": "watch",
+       "value": 85.0
+      },
+      {
+       "label": "95% HPFP",
+       "tone": "high",
+       "value": 95.0
+      }
+     ],
+     "title": "Fuel pump headroom",
+     "x_label": "Engine speed (rpm)",
+     "y_label": "Percent"
+    }
+   ],
+   "tip": "A rail that sags below its setpoint at the top of the pull, at the same rpm as a pump line pressing up against its watch threshold, is a fuel-supply limit rather than a calibration choice \u2014 more boost will not fix it and will make the lambda plot worse.",
+   "title": "Rail pressure and pump headroom"
+  },
+  {
+   "description": "Turbocharger shaft speed over loaded WOT samples vs engine speed, against the watch and hardware-limit lines.",
+   "drawn": true,
+   "id": "turbo_heat",
+   "panels": [
+    {
+     "drawn": true,
+     "series": [
+      {
+       "label": "",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          120.0,
+          122.4,
+          124.8,
+          127.2,
+          129.6,
+          132.0,
+          134.4,
+          136.8,
+          139.2,
+          141.6,
+          144.0,
+          146.4,
+          148.8,
+          151.2,
+          153.6,
+          156.0,
+          158.4,
+          160.8,
+          163.2,
+          165.6,
+          168.0,
+          170.4,
+          172.8,
+          175.2,
+          177.6,
+          180.0
+         ]
+        }
+       ],
+       "source": "turbo_speed"
+      },
+      {
+       "label": "",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          120.0,
+          122.4,
+          124.8,
+          127.2,
+          129.6,
+          132.0,
+          134.4,
+          136.8,
+          139.2,
+          141.6,
+          144.0,
+          146.4,
+          148.8,
+          151.2,
+          153.6,
+          156.0,
+          158.4,
+          160.8,
+          163.2,
+          165.6,
+          168.0,
+          170.4,
+          172.8,
+          175.2,
+          177.6,
+          180.0
+         ]
+        }
+       ],
+       "source": "turbo_speed"
+      }
+     ],
+     "thresholds": [
+      {
+       "label": "190k watch",
+       "tone": "watch",
+       "value": 190.0
+      },
+      {
+       "label": "220k limit",
+       "tone": "high",
+       "value": 220.0
+      }
+     ],
+     "title": "Turbo speed (loaded WOT)",
+     "x_label": "Engine speed (rpm)",
+     "y_label": "Turbo speed (krpm logged)"
+    }
+   ],
+   "tip": "The limit line here is a hardware one, not a number the calibration chose. A pull that reaches toward it on a cool day will go past it on a hot one, so the margin visible on this plot is the margin you are actually running.",
+   "title": "Turbo speed"
+  },
+  {
+   "description": "Final wastegate position against the base (feedforward) position it started from (top), and the closed loop's integral and P-D correction terms (bottom), over loaded WOT samples vs engine speed.",
+   "drawn": true,
+   "id": "wastegate",
+   "panels": [
+    {
+     "drawn": true,
+     "series": [
+      {
+       "label": "Final",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          45.0,
+          46.32,
+          47.64,
+          48.96,
+          50.28,
+          51.6,
+          52.92,
+          54.24,
+          55.56,
+          56.88,
+          58.2,
+          59.52,
+          60.84,
+          62.16,
+          63.480000000000004,
+          64.8,
+          66.12,
+          67.44,
+          68.76,
+          70.08,
+          71.4,
+          72.72,
+          74.04,
+          75.36,
+          76.68,
+          78.0
+         ]
+        }
+       ],
+       "source": "wg_pos_final"
+      },
+      {
+       "label": "Final",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          45.0,
+          46.32,
+          47.64,
+          48.96,
+          50.28,
+          51.6,
+          52.92,
+          54.24,
+          55.56,
+          56.88,
+          58.2,
+          59.52,
+          60.84,
+          62.16,
+          63.480000000000004,
+          64.8,
+          66.12,
+          67.44,
+          68.76,
+          70.08,
+          71.4,
+          72.72,
+          74.04,
+          75.36,
+          76.68,
+          78.0
+         ]
+        }
+       ],
+       "source": "wg_pos_final"
+      },
+      {
+       "label": "Base",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "reference",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          40.0,
+          41.2,
+          42.4,
+          43.6,
+          44.8,
+          46.0,
+          47.2,
+          48.4,
+          49.6,
+          50.8,
+          52.0,
+          53.2,
+          54.4,
+          55.6,
+          56.8,
+          58.0,
+          59.2,
+          60.4,
+          61.599999999999994,
+          62.8,
+          64.0,
+          65.2,
+          66.4,
+          67.6,
+          68.8,
+          70.0
+         ]
+        }
+       ],
+       "source": "wg_pos_base"
+      },
+      {
+       "label": "Base",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "reference",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          40.0,
+          41.2,
+          42.4,
+          43.6,
+          44.8,
+          46.0,
+          47.2,
+          48.4,
+          49.6,
+          50.8,
+          52.0,
+          53.2,
+          54.4,
+          55.6,
+          56.8,
+          58.0,
+          59.2,
+          60.4,
+          61.599999999999994,
+          62.8,
+          64.0,
+          65.2,
+          66.4,
+          67.6,
+          68.8,
+          70.0
+         ]
+        }
+       ],
+       "source": "wg_pos_base"
+      }
+     ],
+     "thresholds": [],
+     "title": "Wastegate final vs base position",
+     "x_label": "Engine speed (rpm)",
+     "y_label": "WG position (%)"
+    },
+    {
+     "drawn": true,
+     "series": [
+      {
+       "label": "I term",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0
+         ]
+        }
+       ],
+       "source": "wg_i_value"
+      },
+      {
+       "label": "I term",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "primary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0,
+          -2.0
+         ]
+        }
+       ],
+       "source": "wg_i_value"
+      },
+      {
+       "label": "P-D term",
+       "ordinal": 0,
+       "pull": 1,
+       "role": "secondary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ]
+        }
+       ],
+       "source": "wg_pd_value"
+      },
+      {
+       "label": "P-D term",
+       "ordinal": 1,
+       "pull": 2,
+       "role": "secondary",
+       "segments": [
+        {
+         "x": [
+          3000.0,
+          3140.0,
+          3280.0,
+          3420.0,
+          3560.0,
+          3700.0,
+          3840.0,
+          3980.0,
+          4120.0,
+          4260.0,
+          4400.0,
+          4540.0,
+          4680.0,
+          4820.0,
+          4960.0,
+          5100.0,
+          5240.0,
+          5380.0,
+          5520.0,
+          5660.0,
+          5800.0,
+          5940.0,
+          6080.0,
+          6220.0,
+          6360.0,
+          6500.0
+         ],
+         "y": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ]
+        }
+       ],
+       "source": "wg_pd_value"
+      }
+     ],
+     "thresholds": [
+      {
+       "label": "",
+       "tone": "zero",
+       "value": 0.0
+      },
+      {
+       "label": "-20% clamp watch",
+       "tone": "high",
+       "value": -20.0
+      }
+     ],
+     "title": "Wastegate closed-loop correction terms",
+     "x_label": "Engine speed (rpm)",
+     "y_label": "Correction (%)"
+    }
+   ],
+   "tip": "The gap between solid (final) and dashed (base) is how hard the closed loop is having to correct the feedforward table. If the integral term is sitting on its clamp while boost is still overshooting, the loop has run out of authority and the fix belongs in the base table, not in the controller.",
+   "title": "Wastegate position and correction"
+  }
+ ],
+ "pulls": [
+  {
+   "airmass_max": 1490.0,
+   "airmass_min": 950.0,
+   "duration_s": 1.25,
+   "end_row": 25,
+   "environment": {
+    "ambient_press_kpa": 101.0,
+    "ambient_temp_c": 15.0,
+    "coolant_temp_c": 95.0,
+    "eth_content_pct": 0.0,
+    "iat_start_c": 25.0
+   },
+   "file": "simostools-fault.csv",
+   "gear": 3,
+   "gear_resolved": true,
+   "hpfp_eff_max": 90.0,
+   "index": 1,
+   "lambda_error_max": 0.0,
+   "lambda_error_min": 0.0,
+   "lpfp_max": 70.0,
+   "max_boost": null,
+   "max_put": 275.0,
+   "max_put_error": 25.0,
+   "min_knock": -3.5,
+   "n_samples": 26,
+   "rpm_max": 6500.0,
+   "rpm_min": 3000.0,
+   "start_row": 0,
+   "turbo_speed_max": 180.0
+  },
+  {
+   "airmass_max": 1490.0,
+   "airmass_min": 950.0,
+   "duration_s": 1.25,
+   "end_row": 81,
+   "environment": {
+    "ambient_press_kpa": 101.0,
+    "ambient_temp_c": 15.0,
+    "coolant_temp_c": 95.0,
+    "eth_content_pct": 0.0,
+    "iat_start_c": 25.0
+   },
+   "file": "simostools-fault.csv",
+   "gear": 3,
+   "gear_resolved": true,
+   "hpfp_eff_max": 90.0,
+   "index": 2,
+   "lambda_error_max": 0.0,
+   "lambda_error_min": 0.0,
+   "lpfp_max": 70.0,
+   "max_boost": null,
+   "max_put": 250.0,
+   "max_put_error": 0.0,
+   "min_knock": 0.0,
+   "n_samples": 26,
+   "rpm_max": 6500.0,
+   "rpm_min": 3000.0,
+   "start_row": 56,
+   "turbo_speed_max": 180.0
+  }
+ ],
+ "ran": [
+  "knock",
+  "boost",
+  "wastegate",
+  "lambda",
+  "rail_pressure",
+  "timing",
+  "turbo_heat",
+  "torque_limiter",
+  "data_quality"
+ ],
+ "schema": "simoscal.analysis/1",
+ "skipped": [
+  {
+   "check_id": "boost_cal",
+   "missing_channels": [],
+   "reason": "calibration-aware check but no bin/XDF resolved",
+   "title": "Boost vs calibrated ceiling"
+  },
+  {
+   "check_id": "boost_p0234",
+   "missing_channels": [],
+   "reason": "calibration-aware check but no bin/XDF resolved",
+   "title": "P0234 overboost margin"
+  }
+ ]
+}

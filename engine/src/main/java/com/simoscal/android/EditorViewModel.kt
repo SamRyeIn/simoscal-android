@@ -67,6 +67,20 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                             InputKind.BIN -> current.withBin(file)
                             InputKind.XDF -> current.withXdf(file)
                             InputKind.SWITCH_PATCH_XDF -> current.withSwitchPatchXdf(file)
+                            // No picker in the editor flow requests a datalog —
+                            // logs belong to AnalysisViewModel. Reaching here
+                            // means a picker was wired to the wrong view model,
+                            // which is refused loudly rather than dropped, so the
+                            // miswiring shows up as a message instead of as a
+                            // button that silently does nothing.
+                            InputKind.LOG -> current.copy(
+                                error = UserFacingError(
+                                    code = "WRONG_INPUT_KIND",
+                                    message = "A datalog is not an editor input — " +
+                                        "open Analyze to read logs.",
+                                    advanced = "InputKind.LOG reached EditorViewModel.onFilePicked",
+                                )
+                            )
                         }.copy(busy = false)
                     },
                     onFailure = { error ->

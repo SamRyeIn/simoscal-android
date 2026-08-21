@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Settings
@@ -46,6 +47,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.simoscal.engine.R
+import com.simoscal.android.AnalysisViewModel
 import com.simoscal.android.Destination
 import com.simoscal.android.InputKind
 import com.simoscal.android.PreflightState
@@ -62,7 +64,7 @@ import com.simoscal.android.EditorViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SimoscalApp(viewModel: EditorViewModel) {
+fun SimoscalApp(viewModel: EditorViewModel, analysisViewModel: AnalysisViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val recoverable by viewModel.recoverable.collectAsStateWithLifecycle()
     val navController = rememberNavController()
@@ -99,7 +101,12 @@ fun SimoscalApp(viewModel: EditorViewModel) {
                     popUpTo("import") { inclusive = false }
                 }
             }
-        } else if (route != "import") {
+        } else if (route != "import" && route != "analyze") {
+            // "analyze" is exempt because it is the one destination that does not
+            // belong to a session. Without this the effect — which re-runs on
+            // every fresh composition, not only when the session changes — would
+            // throw a person off the Analyze screen on rotation, for the sake of
+            // a session they were deliberately not using.
             navController.navigate("import") {
                 popUpTo(0)
             }
@@ -161,7 +168,9 @@ fun SimoscalApp(viewModel: EditorViewModel) {
                         destinationItems().forEach { item ->
                             NavigationBarItem(
                                 selected = currentRoute == item.route,
-                                enabled = state.destinationEnabled(item.destination),
+                                // A null destination is not gated on a session — see
+                                // [DestinationItem.destination].
+                                enabled = item.destination?.let(state::destinationEnabled) ?: true,
                                 onClick = {
                                     navController.navigate(item.route) {
                                         popUpTo(navController.graph.findStartDestination().id) {
@@ -215,7 +224,25 @@ fun SimoscalApp(viewModel: EditorViewModel) {
                 startDestination = "import",
                 modifier = Modifier.weight(1f),
             ) {
-                composable("import") { ImportScreen(viewModel = viewModel, recoverable = recoverable) }
+                composable("import") {
+                    ImportScreen(
+                        viewModel = viewModel,
+                        recoverable = recoverable,
+                        onAnalyze = { navController.navigate("analyze") },
+                    )
+                }
+                // Reachable with or without a session, and it never opens one.
+                // "Done" is offered instead of the navigation bar when no session
+                // is open, since the bar — and with it every other way off this
+                // screen — does not exist then.
+                composable("analyze") {
+                    AnalyzeScreen(
+                        viewModel = analysisViewModel,
+                        onBack = if (state.sessionOpen) null else {
+                            { navController.popBackStack() }
+                        },
+                    )
+                }
                 composable("tables") { TablesScreen(viewModel = viewModel) }
                 composable("boost") { BoostScreen(viewModel = viewModel) }
                 composable("slots") { SlotsScreen(viewModel = viewModel) }
@@ -255,7 +282,17 @@ fun SimoscalApp(viewModel: EditorViewModel) {
 }
 
 private data class DestinationItem(
-    val destination: Destination,
+    /**
+     * The session destination this item leads to, or null for one that does not
+     * belong to a session at all.
+     *
+     * Analyze is the null case, and it is null rather than a new [Destination]
+     * on purpose: that enum is the set of places *a session* lets a person go,
+     * and `destinationEnabled` gates every one of them on `sessionOpen`. Adding
+     * Analyze to it would mean writing a case that ignores the very state the
+     * enum exists to model. A null here reads as what it is — not gated.
+     */
+    val destination: Destination?,
     val route: String,
     val label: String,
     val icon: ImageVector,
@@ -270,6 +307,11 @@ private fun destinationItems(): List<DestinationItem> = listOf(
     // put the unverified list on the far side of the gate that verifies it.
     DestinationItem(Destination.CHANGES, "changes", "Changes", Icons.Filled.Edit),
     DestinationItem(Destination.BUILD, "build", "Build", Icons.Filled.Build),
+    // Last, and always enabled. It reads datalogs from the *previous* flash, so
+    // it sits after the gate rather than inside the edit → verify run: it is
+    // where a person goes to find out whether the last bin actually worked,
+    // which is the question that starts the next revision.
+    DestinationItem(null, "analyze", "Analyze", Icons.Filled.Info),
 )
 
 /**

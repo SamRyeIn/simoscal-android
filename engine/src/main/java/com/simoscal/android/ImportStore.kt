@@ -174,4 +174,17 @@ enum class InputKind(val extension: String, val fallbackName: String, val mimeTy
     BIN(".bin", "imported.bin", arrayOf("*/*")),
     XDF(".xdf", "imported.xdf", arrayOf("*/*")),
     SWITCH_PATCH_XDF(".patch.xdf", "switch-patch.xdf", arrayOf("*/*")),
+
+    /**
+     * A SimosTools datalog CSV, for the Analyze screen.
+     *
+     * Accepts any MIME type, like the others, rather than filtering on
+     * `text/csv`: a CSV arriving from Drive, a file manager, or SimosTools' own
+     * share sheet is reported under whatever type that provider decided on —
+     * often `application/octet-stream` — and a narrow filter silently greys out
+     * the very file the person came to pick. The engine identifies a log by
+     * parsing its header row, which is the only claim about the file worth
+     * trusting anyway.
+     */
+    LOG(".csv", "datalog.csv", arrayOf("*/*")),
 }

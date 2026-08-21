@@ -80,6 +80,29 @@ internal fun Double.displayExact(): String {
 private fun String.tidied(): String =
     (if (contains('.')) trimEnd('0').trimEnd('.') else this).zeroNormalised()
 
+/** Most decimals [displayMeasured] will print. Past this a logged sample is noise. */
+private const val MAX_MEASURED_DECIMALS = 3
+
+/**
+ * A *measured* number, at readout precision — trailing zeros trimmed.
+ *
+ * The counterpart to [displayExact], and the distinction is not cosmetic.
+ * [displayExact] exists because a calibration value must read back as itself:
+ * seeding an edit field with a rounded number would silently write a different
+ * one. A datalog sample is never edited and never read back — it is a
+ * measurement someone is looking at — so the requirement inverts. Printing a
+ * logged 213.45678901234 kPa to seventeen digits does not make it more true; the
+ * sensor never had that precision, and the digits past the third are the ADC's
+ * and the arithmetic's rather than the engine's.
+ *
+ * Three decimals because the smallest quantity the analysis battery reports is a
+ * lambda error, whose watch line sits at 0.03.
+ */
+internal fun Double.displayMeasured(): String {
+    if (!isFinite()) return nonFinite()
+    return display("%.${MAX_MEASURED_DECIMALS}f").tidied()
+}
+
 /**
  * Flip the sign of a number *as typed text*, for the ± control.
  *

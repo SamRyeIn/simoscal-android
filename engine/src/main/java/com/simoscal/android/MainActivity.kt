@@ -19,11 +19,21 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: EditorViewModel by viewModels()
 
+    /**
+     * Analysis keeps its own view model.
+     *
+     * It shares no state with the editor and gates on nothing the editor
+     * holds — it opens no session, buffers no bin, and has nothing to
+     * recover — so its picked datalogs survive rotation on their own rather
+     * than riding along inside a session's state.
+     */
+    private val analysisViewModel: AnalysisViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             SimoscalTheme {
-                SimoscalApp(viewModel = viewModel)
+                SimoscalApp(viewModel = viewModel, analysisViewModel = analysisViewModel)
             }
         }
     }

@@ -60,9 +60,13 @@ UI code is `com.simoscal.android`; the V0/V6 engine plumbing stays in
 | `BoostCurve.kt`         | Boost read model + the two ceilings and every clamp. Pure.        |
 | `BoostUiState.kt`       | Staged boost draft, the stepper's selection, and every transition. Pure. |
 | `BoostPlot.kt`          | Canvas coordinate math, Compose-free so it is JVM-testable.       |
+| `AnalysisModel.kt`      | The `analyze_logs` read model. Parses; never analyses. Pure.      |
+| `AnalysisPlot.kt`       | Analysis axis/tick/thinning math, Compose-free. Pure.             |
+| `AnalysisUiState.kt`    | Picked logs, the run gate, and the stale-report rule. Pure.       |
+| `AnalysisViewModel.kt`  | One bridge call; no session, no bin, nothing to recover.          |
 | `TablesUiState.kt`      | Catalog, table draft, selection, and batch operations. Pure.      |
 | `ChangesUiState.kt`     | The session's journal as flat text, and what needs a reviewer's eyes. Pure. |
-| `ui/`                   | Compose shell, navigation, and the five screens.                  |
+| `ui/`                   | Compose shell, navigation, and the six screens.                   |
 
 ### The rules the shell enforces
 
@@ -209,11 +213,14 @@ Android Studio's bundled JDK 21 fails AGP 7.4.2's `JdkImageTransform` in
 to `../../simoscal` and the library actually lives inside the car-tuning repo
 at `SimosTools/Code`; `SIMOSCAL_DIR` in the environment does the same job.
 
-Expect **183 unit tests passing** and a receipt at
+Expect **226 unit tests passing** and a receipt at
 `engine/build/reports/permissions/debug.txt`:
 
 | Test class            | Cases |
 | --------------------- | ----- |
+| `AnalysisModelTest`   | 18    |
+| `AnalysisPlotTest`    | 11    |
+| `AnalysisUiStateTest` | 14    |
 | `BoostCurveTest`      | 18    |
 | `BoostPlotTest`       | 7     |
 | `BoostUiStateTest`    | 22    |
@@ -237,7 +244,7 @@ repaint, 158 → 159 when the 2026-08-18 split moved `NumpyPinTest` here from
 `simoscal` without updating the total, and 159 → 167 again before V10 (nine cases
 added to `BoostUiStateTest`, one retired from `EditorStateTest`, neither
 recorded) — found by diffing this table against the run rather than by anyone
-noticing. V10 takes it to 183. If you add a test, add it here.
+noticing. V10 takes it to 183, and V11's analysis suites take it to 226. If you add a test, add it here.
 
 The unit tests are deliberately JVM-only and cover the pure layers: the envelope
 contract against the real `org.json`, every state gate, the import naming and
@@ -647,7 +654,7 @@ same rule `SettingKind.UNKNOWN` follows on the slots screen.
 
 ### Still owed
 
-On-device: the tab is host-verified only (183 unit tests, `assembleDebug` green).
+On-device: the tab is host-verified only (226 unit tests, `assembleDebug` green).
 The five-item navigation bar and the collapsed journal at a real recipe's entry
 count have not been looked at on the tablet.
 
@@ -1169,6 +1176,112 @@ Installed on this machine while setting up: `openjdk@17`
 An AVD named `v0_arm64` (Pixel 6 / API 35 / arm64) exists. `~/.zshrc` was not
 modified; `JAVA_HOME` is set per-invocation.
 
+## V11 — the analysis battery on the phone
+
+The other half of the tuning loop. Everything before this unit helps someone
+*write* a calibration; this one reads the datalogs that say whether the last one
+worked, on the same tablet, without a laptop in the loop.
+
+Reachable from the landing screen and from the navigation bar, and gated on
+nothing: `analyze_logs` opens no session, holds no bin, and writes no file, so
+requiring a session would be a gate with no safety behind it.
+
+### The plots are series, not pictures — and why that is the honest port
+
+matplotlib is deliberately outside the mobile dependency closure (see the `pip`
+block in `engine/build.gradle.kts`: core deps are numpy-only, which is what keeps
+matplotlib and openpyxl out of the APK). So the phone cannot render the library's
+own evidence PNGs and has to draw its own.
+
+That is where a feature like this usually goes wrong. The moment the Kotlin side
+decides *which channel belongs on which panel*, the app and the desktop report
+start describing the same log differently, and the battery stops being the
+identical, enumerable thing its whole design rests on. So the inventory moved
+into data instead:
+
+- **`simoscal/analysis/series.py`** declares every rpm-axis evidence plot — its
+  panels, each panel's series and their roles, its threshold lines, and the
+  prose printed above it — as `PLOT_SPECS`, and nowhere else.
+- **`evidence.py` renders those declarations** to PNG. The seven imperative
+  plotter functions are gone; `_render_plot_spec` walks the spec.
+- **`bridge.analyze_logs` serializes the same declarations** to JSON, using the
+  *same* `series_segments()` the PNG writer uses, so the masking, the splitting
+  at mask holes, and the rpm sort all happen once.
+- **Kotlin draws marks and nothing else.** `AnalysisCanvas` maps role → ink and
+  tone → colour; it never picks a channel.
+
+`test_plot_payload_matches_the_png_inventory` pins the join: whatever the
+payload calls drawn is exactly what the desktop renderer writes a file for.
+
+The refactor was checked for drift rather than assumed safe. Rendering
+`Logs/BasicsGuide_R14/` before and after, **six of the seven PNGs are
+byte-identical** and the findings JSON is identical. The seventh
+(`rail_pressure`) differs only in the HPFP threshold line's width, 0.9 → 1.0:
+every other "high" threshold in the battery was already 1.0, and the tone
+taxonomy that now crosses to the app has three levels, not a per-line width.
+That was confirmed to be the *only* difference by re-rendering with the width
+forced back.
+
+### What the screen shows
+
+Plots are presented **in alphabetical order by id** — boost, ignition, knock,
+lambda, rail pressure, turbo heat, wastegate — always the same order whatever
+the log held, so the screen is a list someone can learn rather than one that
+reshuffles with the data.
+
+Each plot carries a description above it (what is plotted) and a tip below it
+(what to notice). Both come from `PLOT_SPECS`, so the app and any future report
+describe a plot in the same words. The encoding they all share is explained once
+in a standing "How to read these" panel rather than seven times: solid coloured
+is measured, dashed grey is what the ECU asked for, faint dots are transients the
+lines exclude, and horizontal dashed lines are *this tool's* watch and high
+thresholds, not limits the ECU enforces.
+
+### Three decisions worth knowing
+
+- **A pull's colour is assigned by the engine, not the app.** The payload carries
+  an `ordinal` per series. Re-deriving it on the phone would let a pull that
+  contributed nothing to one panel shift every later pull's colour on that panel
+  alone, and "the blue curve" has to mean the same run across every plot.
+- **Thinning keeps extremes, never a stride.** A three-minute log puts more
+  samples behind a curve than a phone has pixels. `thinForDisplay` buckets and
+  emits each bucket's min and max, because a single-sample knock spike is exactly
+  what a stride would drop and exactly what the plot exists to show.
+- **The bin is optional and never borrowed from the open session.** The two
+  calibration-aware checks compare a log against the ceilings of the bin that was
+  *flashed when it was recorded*; the bin someone is editing is the next
+  calibration, not that one. Silently using it would produce a confident wrong
+  answer, so the screen asks for it separately and says why.
+
+### Verifying this unit
+
+```bash
+# engine half, from the simoscal checkout
+Code/.venv/bin/python -m pytest tests/test_analysis_series.py tests/test_bridge.py -q
+
+# app half
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17
+./gradlew :engine:testDebugUnitTest -Psimoscal.dir=/Users/sam/SimosTools/Code
+```
+
+`engine/src/test/resources/analysis_result.json` is a fixture **the engine
+itself produced** (regenerate with `parity/gen_analysis_fixture.py`), so
+`AnalysisModelTest` checks the parser against the real wire format rather than
+against a hand-written guess — the same gap `VerifiedParamsTest` exists to close.
+
+### Not on the phone
+
+The two per-file time-axis plots (`overview`, `tc_activity`) stay desktop-only.
+They are whole-log panel stacks against time with shaded pull windows, they carry
+no `plot_ref` on any finding, and they remain imperative in `evidence.py`. Adding
+them is a further unit, not a gap in this one.
+
+> **Not yet run on hardware.** Everything above is host-verified: 226 JVM unit
+> tests, a clean `compileDebugKotlin`, and the engine half exercised through
+> `dispatch()` against real `Logs/BasicsGuide_R14/` CSVs with matplotlib blocked.
+> The SAF multi-pick, the canvas at tablet density, and the memory cost of a
+> real multi-CSV session have not been seen on the Galaxy Tab.
+
 ## Ordering note — V1 came before V0, necessarily
 
 The plan lists V1 (portable package boundary) as depending on V0. In practice the
@@ -1189,6 +1302,8 @@ simoscal` and `import simoscal.tune` both succeed, a real XDF/bin parses and
 decodes, and checksums verify — with matplotlib never imported. Full suite: **554
 passed**.
 
-What remains of V1 for its own unit: installed-wheel packaging tests, and the
-same decoupling for `simoscal.analysis` (`evidence.py` still imports matplotlib
-at module scope).
+What remains of V1 for its own unit: installed-wheel packaging tests. The
+`simoscal.analysis` half of the decoupling is **done** — `evidence.py` imports
+matplotlib lazily inside `_figure()`, and V11 above proves it end-to-end by
+running the whole analysis battery through `dispatch()` with matplotlib forced
+to fail on import.
