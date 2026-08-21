@@ -302,6 +302,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                 DirtyDraft.TABLE -> state.copy(tables = state.tables.copy(notice = reason))
                 DirtyDraft.LIMITERS -> state.copy(limiters = state.limiters.copy(notice = reason))
                 DirtyDraft.PEDAL -> state.copy(pedal = state.pedal.copy(notice = reason))
+                DirtyDraft.LAMBDA -> state.copy(lambda = state.lambda.copy(notice = reason))
                 null -> state
             }
         }
@@ -323,6 +324,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         // longer exists — and the ordering is the whole thing this screen is for.
         if (current.limiters.model != null) loadLimiters()
         current.pedal.detail?.summary?.let { openPedalMap(it) }
+        if (current.lambda.detail != null) loadLambdaMap()
     }
 
     // ------------------------------------------------------------------ build
@@ -443,6 +445,103 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                     is BridgeOutcome.Failed -> state.copy(
                         boost = state.boost.copy(loading = false, unavailable = outcome.message),
                         error = if (outcome.code == "TUNE_ERROR") null else outcome.toUserFacing(),
+                    )
+                }
+            }
+        }
+    }
+
+    // ----------------------------------------------------------------- lambda
+
+    fun onLambdaRowSelected(index: Int) =
+        _state.update { it.copy(lambda = it.lambda.selectingRow(index)) }
+
+    fun onLambdaPointDragged(index: Int, value: Double) =
+        _state.update { it.copy(lambda = it.lambda.withDraggedPoint(index, value)) }
+
+    fun onLambdaPointTyped(index: Int, value: Double) =
+        _state.update { it.copy(lambda = it.lambda.withTypedPoint(index, value)) }
+
+    fun onLambdaFlatRow(value: Double) =
+        _state.update { it.copy(lambda = it.lambda.withFlatRow(value)) }
+
+    fun onLambdaDiscard() = _state.update { it.copy(lambda = it.lambda.discardingDraft()) }
+
+    fun dismissLambdaNotice() = _state.update { it.copy(lambda = it.lambda.copy(notice = null)) }
+
+    /**
+     * Read the enrichment map, and with it the bound the engine refuses at.
+     *
+     * The bound travels with the data rather than being a constant in the app:
+     * the band the screen shades and the value the engine rejects on have to be
+     * the same number, and two copies of it would eventually disagree.
+     */
+    fun loadLambdaMap() {
+        val sessionId = _state.value.sessionId ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(lambda = it.lambda.copy(loading = true, notice = null)) }
+            val outcome = bridge.call("lambda_fl", params { put("session_id", sessionId) })
+            _state.update { state ->
+                when (outcome) {
+                    is BridgeOutcome.Ok -> {
+                        val parsed = parseLambdaPayload(outcome.result)
+                        if (parsed == null) {
+                            state.copy(
+                                lambda = state.lambda.copy(
+                                    loading = false,
+                                    unavailable = "The engine returned no enrichment map.",
+                                ),
+                            )
+                        } else {
+                            val (detail, leanMax, richMin) = parsed
+                            state.copy(lambda = state.lambda.withDetail(detail, leanMax, richMin))
+                        }
+                    }
+                    is BridgeOutcome.Failed -> state.copy(
+                        lambda = state.lambda.copy(loading = false, unavailable = outcome.message),
+                        error = if (outcome.code == "TUNE_ERROR") null else outcome.toUserFacing(),
+                    )
+                }
+            }
+        }
+    }
+
+    /** Commit the staged time-row as one journaled enrichment edit. */
+    fun applyLambdaDraft(intent: String) {
+        val current = _state.value
+        val sessionId = current.sessionId ?: return
+        val lambda = current.lambda
+        if (!lambda.canApply) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true) }
+            val outcome = bridge.call(
+                op = "lambda_fl_edit",
+                params = params {
+                    put("session_id", sessionId)
+                    put("row", lambda.row)
+                    put("values", lambda.draft.toJsonArray())
+                    put("intent", intent)
+                },
+            )
+            _state.update { state ->
+                when (outcome) {
+                    is BridgeOutcome.Ok -> state.copy(
+                        busy = false,
+                        lambda = state.lambda.applied(
+                            outcome.result.doubleList("encoded").ifEmpty { state.lambda.draft },
+                            "Applied.",
+                        ),
+                        canUndo = outcome.result.optBoolean("can_undo", state.canUndo),
+                        canRedo = outcome.result.optBoolean("can_redo", state.canRedo),
+                    ).invalidatingBuild()
+                    // The engine's own sentence, shown at the control. A refused
+                    // lean setpoint is a fact about the value staged here — not
+                    // something that put the session in a bad state.
+                    is BridgeOutcome.Failed -> state.copy(
+                        busy = false,
+                        lambda = state.lambda.copy(notice = outcome.message),
+                        error = if (outcome.code == "EDIT_REJECTED") null else outcome.toUserFacing(),
                     )
                 }
             }

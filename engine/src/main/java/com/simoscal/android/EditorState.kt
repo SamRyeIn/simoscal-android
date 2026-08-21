@@ -10,7 +10,7 @@ package com.simoscal.android
  */
 
 /** Workspace destinations, available only once a session is open. */
-enum class Destination { TABLES, BOOST, LIMITERS, PEDAL, SLOTS, CHANGES, BUILD }
+enum class Destination { TABLES, BOOST, LIMITERS, PEDAL, LAMBDA, SLOTS, CHANGES, BUILD }
 
 sealed interface PreflightState {
     /** Inputs are not both chosen yet, or nothing has been checked. */
@@ -78,7 +78,7 @@ data class UserFacingError(val code: String, val message: String, val advanced: 
  * be lost, and the notice has to land in that editor rather than in a snackbar
  * over the other one.
  */
-enum class DirtyDraft { BOOST, TABLE, LIMITERS, PEDAL }
+enum class DirtyDraft { BOOST, TABLE, LIMITERS, PEDAL, LAMBDA }
 
 data class EditorUiState(
     /**
@@ -110,6 +110,7 @@ data class EditorUiState(
     val overlay: OverlayUiState = OverlayUiState(),
     val limiters: LimitersUiState = LimitersUiState(),
     val pedal: PedalUiState = PedalUiState(),
+    val lambda: LambdaUiState = LambdaUiState(),
     val tables: TablesUiState = TablesUiState(),
     val slots: SlotsUiState = SlotsUiState(),
     val changes: ChangesUiState = ChangesUiState(),
@@ -154,7 +155,7 @@ data class EditorUiState(
         // Pedal joins these for the same reason: the driver-interpretation maps
         // are base calibration and need no patch.
         Destination.TABLES, Destination.CHANGES, Destination.BUILD,
-        Destination.LIMITERS, Destination.PEDAL -> sessionOpen
+        Destination.LIMITERS, Destination.PEDAL, Destination.LAMBDA -> sessionOpen
         // Boost and Slots both live in the switch-patch space, which only exists
         // if its XDF was imported. Same gate, same reason.
         Destination.BOOST, Destination.SLOTS -> sessionOpen && switchPatchXdf != null
@@ -175,6 +176,7 @@ data class EditorUiState(
             tables.dirty -> DirtyDraft.TABLE
             limiters.dirty -> DirtyDraft.LIMITERS
             pedal.dirty -> DirtyDraft.PEDAL
+            lambda.dirty -> DirtyDraft.LAMBDA
             else -> null
         }
 
@@ -208,6 +210,9 @@ data class EditorUiState(
                     "it with the values the engine holds."
             DirtyDraft.PEDAL ->
                 "Apply or discard the pedal-curve change first — this would " +
+                    "replace it with the values the engine holds."
+            DirtyDraft.LAMBDA ->
+                "Apply or discard the enrichment change first — this would " +
                     "replace it with the values the engine holds."
             null -> null
         }
@@ -271,6 +276,7 @@ private fun EditorUiState.forgettingPreviousInputs(): EditorUiState = copy(
     overlay = OverlayUiState(),
     limiters = LimitersUiState(),
     pedal = PedalUiState(),
+    lambda = LambdaUiState(),
     tables = TablesUiState(),
     changes = ChangesUiState(),
     error = null,
