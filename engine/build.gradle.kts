@@ -110,6 +110,13 @@ android {
         }
     }
 
+    // Instrumented tests run against `debug` by default, which has R8 off — so
+    // the on-device suite proves nothing about the release build. Pass
+    // -PtestReleaseBuild to point `connectedAndroidTest` at the minified variant
+    // instead; that is the only way to catch a missing Chaquopy keep, which fails
+    // at runtime while the build stays green. Needs release signing material.
+    testBuildType = if (project.hasProperty("testReleaseBuild")) "release" else "debug"
+
     buildTypes {
         getByName("release") {
             // R8 shrinking is ON, and `engine/proguard-rules.pro` is load-bearing:
@@ -123,6 +130,16 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // Test-only app-side keeps, added ONLY when -PtestReleaseBuild points
+            // the instrumented suite here. Gated so a shipping release build is
+            // never widened to satisfy the test runner. See the file's header.
+            if (project.hasProperty("testReleaseBuild")) {
+                proguardFile("proguard-rules-releasetest.pro")
+            }
+            // Applies to the androidTest APK when -PtestReleaseBuild points the
+            // instrumented suite at this variant. Kept out of proguardFiles so
+            // test-only relaxations can never reach the shipped app.
+            testProguardFiles("proguard-rules-androidTest.pro")
             signingConfig = signingConfigs.findByName("release")
         }
 

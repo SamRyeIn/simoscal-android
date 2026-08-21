@@ -802,6 +802,58 @@ Read the XML before believing the verdict in either direction — a red Gradle
 build here is not a failing test, and it is certainly not a parity result. Use
 `am instrument` (above) or Android Studio's green ▶.
 
+### Running the device half against the *minified release* build
+
+The sequence above builds `debug`, which has R8 off — so it exercises none of the
+keeps in `engine/proguard-rules.pro` and proves nothing about the artifact that
+ships. `testBuildType` is `debug` by default for exactly that reason; pass
+`-PtestReleaseBuild` to point the instrumented suite at the release variant
+instead. Needs release signing material (see "Release builds").
+
+```bash
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17
+./gradlew :engine:assembleRelease :engine:assembleReleaseAndroidTest \
+  -PtestReleaseBuild -Psimoscal.dir=/Users/sam/SimosTools/Code
+adb install -r engine/build/outputs/apk/release/engine-release.apk
+adb install -r engine/build/outputs/apk/androidTest/release/engine-release-androidTest.apk
+adb shell am instrument -w -r \
+  com.simoscal.engine.test/androidx.test.runner.AndroidJUnitRunner   # -> OK (2 tests)
+```
+
+`connectedAndroidTest` reports `tests=0` here too — same flake as above, so drive
+it with `am instrument` and read that output, not Gradle's exit code.
+
+Confirmed 2026-08-20 on the arm64 API-35 emulator (`v0_arm64`): **OK (2 tests)**,
+with logcat showing `libpython3.13.so`, `libchaquopy_java.so` and the bootstrap
+extension modules (`zlib`, `_ctypes`, `_struct`) loading under R8. That is the
+direct evidence that the Chaquopy keeps hold — the failure mode they guard
+against is a green build whose interpreter dies on device.
+
+#### Why this needs two extra rule files
+
+Running instrumented tests against a minified app breaks three times before it
+works, and each break is in the *test harness*, not the app:
+
+| Symptom                                              | Cause                                                                 |
+|------------------------------------------------------|-----------------------------------------------------------------------|
+| R8 "Missing class `...errorprone...MustBeClosed`"     | compile-only annotation on androidx.test's `Tracer`                   |
+| `NoClassDefFoundError: androidx.tracing.Trace`        | on the *app's* classpath, unused by the app, so R8 strips it — but the runner shares the app's classloader |
+| `NoClassDefFoundError: kotlin.LazyKt`                 | androidx.test resolves Kotlin stdlib members out of the app's dex      |
+| `NoSuchFieldError: No field INSTANCE ... La3/e;`      | R8 renamed `SimoscalBridge`; the test APK still binds the source name  |
+
+The fixes live in two files, deliberately **not** in `proguard-rules.pro`:
+
+- `engine/proguard-rules-androidTest.pro` — via `testProguardFiles`, applies to
+  the androidTest APK only.
+- `engine/proguard-rules-releasetest.pro` — app-side keeps, added **only** when
+  `-PtestReleaseBuild` is set, so a shipping `assembleRelease` / `bundleRelease`
+  is byte-for-byte unchanged by any of this.
+
+The cost of that gate, stated plainly: the APK the suite exercises is not
+byte-identical to the one that ships. The delta is confined to `androidx.tracing`,
+the Kotlin stdlib, and the two bridge class names — none of which touch the
+`com.chaquo.python` keeps the suite exists to prove.
+
 ## Build path (what actually worked)
 
 Generate the `gradlew` wrapper once via **Android Studio** (open this repo root,
