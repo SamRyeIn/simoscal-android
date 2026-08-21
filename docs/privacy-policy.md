@@ -1,3 +1,8 @@
+---
+layout: default
+title: Privacy policy
+---
+
 # Privacy policy — simoscal Android app
 
 **Last updated:** 2026-08-20

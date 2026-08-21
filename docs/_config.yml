@@ -1,0 +1,15 @@
+# This site exists for exactly one page: the privacy policy, which Google Play
+# requires at a stable public URL. Everything else in docs/ is internal project
+# writing — public on GitHub because the repo is, but deliberately not built
+# into a browsable site with its own tidy URLs.
+title: simoscal for Android
+description: Privacy policy for the simoscal Android app
+theme: jekyll-theme-primer
+
+exclude:
+  - 2026-07-21-001-feat-simoscal-android-app-plan.md
+  - 2026-07-21-002-feat-simoscal-android-v1-plan.md
+  - 2026-07-21-simoscal-android-app-requirements.md
+  - code_review.md
+  - implementation_details.md
+  - play-data-safety.md
