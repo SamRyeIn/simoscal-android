@@ -86,6 +86,44 @@ class BoostPlotTest {
         assertTrue(tiny.height > 0f)
         assertTrue(scale.psiAt(tiny, 0f).isFinite())
     }
+
+    /**
+     * The crash this guards: a plot squeezed short clamps [BoostPlotGeometry.height]
+     * to its 1px floor, so every curve ends at the same y and the anti-overlap
+     * nudge marches the ladder down past the bottom edge. Text drawn there is
+     * measured against a negative height and throws, so the ladder must stop.
+     */
+    @Test
+    fun `the slot label ladder stops at the bottom of a squeezed canvas`() {
+        val squeezed = BoostPlotGeometry(canvasWidth = 800f, canvasHeight = 60f)
+        // Five slots whose curves have all collapsed onto one y.
+        val ends = (1..5).map { it to squeezed.bottom }
+        val placed = slotLabelLadder(ends, canvasHeight = 60f)
+
+        assertTrue("some labels must still be drawn", placed.isNotEmpty())
+        assertTrue("the ladder must not run off the canvas", placed.size < ends.size)
+        placed.forEach { (slot, y) ->
+            assertTrue("slot $slot drawn at $y, past the 60px canvas", y <= 60f)
+        }
+    }
+
+    @Test
+    fun `a roomy canvas keeps every slot label, nudged clear of its neighbour`() {
+        // Curves that end well apart, as they do on a plot with room to draw them.
+        val ends = (1..5).map { it to 50f * it }
+        val placed = slotLabelLadder(ends, canvasHeight = 400f)
+
+        assertEquals(5, placed.size)
+        placed.map { it.second }.zipWithNext { above, below ->
+            assertTrue("labels must not overlap", below - above >= 26f - 1e-3f)
+        }
+    }
+
+    @Test
+    fun `labels keep the order of the curves they belong to`() {
+        val ends = listOf(3 to 300f, 1 to 100f, 2 to 200f)
+        assertEquals(listOf(1, 2, 3), slotLabelLadder(ends, canvasHeight = 400f).map { it.first })
+    }
 }
 
 /**

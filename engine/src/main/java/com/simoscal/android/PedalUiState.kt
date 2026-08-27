@@ -41,6 +41,12 @@ const val PEDAL_MAP_PREFIX: String = "pedal_"
 /** The factor granularity a drag snaps to. Finer than anyone can feel; coarse enough to type. */
 const val PEDAL_STEP: Double = 0.001
 
+/** Torque-factor increments offered by the pedal breakpoint stepper. */
+val PEDAL_NUDGE_STEPS: List<Double> = listOf(0.001, 0.005, 0.01, 0.05)
+
+/** A visible but still fine-grained default for one press of plus or minus. */
+val DEFAULT_PEDAL_NUDGE_STEP: Double = 0.01
+
 /**
  * The highest torque factor this editor will set.
  *
@@ -63,6 +69,10 @@ data class PedalUiState(
     val loading: Boolean = false,
     val notice: String? = null,
     val lastApplied: String? = null,
+    /** Pedal-axis point acted on by the exact-value stepper. */
+    val selectedIndex: Int = 0,
+    /** Torque factor added or subtracted by one stepper press. */
+    val nudgeStepFactor: Double = DEFAULT_PEDAL_NUDGE_STEP,
 ) {
 
     /** The committed curve for [column], as the engine last reported it. */
@@ -91,6 +101,27 @@ data class PedalUiState(
     val columnRpm: Double?
         get() = rpmAxis.getOrNull(column)
 
+    /** The selected pedal position and working factor shown by the stepper. */
+    val selectedPedal: Double?
+        get() = pedalAxis.getOrNull(selectedIndex)
+
+    val selectedFactor: Double?
+        get() = draft.getOrNull(selectedIndex)
+
+    /**
+     * One displayed curve for every rpm column.
+     *
+     * The active column comes from [draft], while every other column comes from
+     * the committed grid. This is the graph's central safety property: a staged
+     * edit appears only on the curve being edited and cannot visually leak onto
+     * a neighboring rpm curve.
+     */
+    fun curveAt(index: Int): List<Double> = when {
+        index !in rpmAxis.indices -> emptyList()
+        index == column -> draft
+        else -> detail?.values?.map { row -> row.getOrElse(index) { 0.0 } }.orEmpty()
+    }
+
     val dirty: Boolean
         get() = draft.size == committed.size &&
             draft.indices.any { abs(draft[it] - committed[it]) > 1e-9 }
@@ -113,6 +144,10 @@ fun PedalUiState.withDetail(loaded: TableDetail): PedalUiState {
         draft = loaded.values.map { row -> row.getOrElse(index) { 0.0 } },
         loading = false,
         notice = null,
+        selectedIndex = selectedIndex.coerceIn(
+            0,
+            (loaded.yAxis?.values?.size?.minus(1) ?: 0).coerceAtLeast(0),
+        ),
     )
 }
 
@@ -140,6 +175,7 @@ fun PedalUiState.withDraggedPoint(index: Int, factor: Double): PedalUiState {
     if (index !in draft.indices) return this
     return copy(
         draft = draft.toMutableList().also { it[index] = clampPedalFactor(factor) },
+        selectedIndex = index,
         notice = null,
     )
 }
@@ -157,7 +193,38 @@ fun PedalUiState.withTypedPoint(index: Int, factor: Double): PedalUiState {
     if (index !in draft.indices) return this
     return copy(
         draft = draft.toMutableList().also { it[index] = factor },
+        selectedIndex = index,
         notice = null,
+    )
+}
+
+/** Point the exact-value controls at one pedal breakpoint without editing it. */
+fun PedalUiState.selectingPoint(index: Int): PedalUiState =
+    if (index in draft.indices || index in pedalAxis.indices) copy(selectedIndex = index) else this
+
+/** Walk the selected pedal breakpoint, wrapping at both ends. */
+fun PedalUiState.steppingSelection(delta: Int): PedalUiState {
+    val size = pedalAxis.size
+    if (size <= 0) return this
+    return copy(selectedIndex = ((selectedIndex + delta) % size + size) % size)
+}
+
+/** Choose the factor added or subtracted by one press. */
+fun PedalUiState.withNudgeStep(factor: Double): PedalUiState =
+    if (factor in PEDAL_NUDGE_STEPS) copy(nudgeStepFactor = factor) else this
+
+/**
+ * Move the selected breakpoint exactly one chosen increment.
+ *
+ * This follows the typed-value path, so a step beyond 0…1 is refused with a
+ * reason rather than silently clamped to a different value.
+ */
+fun PedalUiState.nudgingSelection(direction: Int): PedalUiState {
+    if (direction != -1 && direction != 1) return this
+    val from = draft.getOrNull(selectedIndex) ?: return this
+    return withTypedPoint(
+        selectedIndex,
+        snapToPedalStep(from + direction * nudgeStepFactor),
     )
 }
 

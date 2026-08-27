@@ -21,20 +21,21 @@ also continues in the `simoscal` repo).
 
 ## Status
 
-| Piece                                     | State                                         |
-| ----------------------------------------- | --------------------------------------------- |
-| Parity payload (`simoscal_v0_parity.py`)  | Done, deterministic, verified on host         |
-| Host runner + golden                      | Done (`parity/run_host_parity.py`)            |
-| Engine decoupled from matplotlib/openpyxl | Done (see "Ordering note")                    |
-| Gradle/Chaquopy project                   | Builds (AGP 7.4.2 / Gradle 7.6.4 — see below) |
-| Arm64-emulator parity verdict             | **PASS** — digest match (2026-07-23)          |
-| Physical-arm64 parity verdict             | **PASS** — digest match on a Galaxy Tab A9+ (2026-08-15), re-proven against the arm64-only APK (2026-08-16) |
-| x86_64 parity                             | **N/A — ABI dropped** (2026-08-16). Never proven, so no longer shipped |
-| V7 Compose shell + the editing flow        | Built; host-verifiable half green (see V7)    |
-| V7 on-device legs (SAF, share, recovery)  | **Green** — full import → preflight → session → edit → build → export run on a Galaxy Tab A9+ (2026-08-15); process-death recovery exercised too. Rotation and low-storage still owed |
-| V8 boost canvas + calibration editors     | Built; pure rules green (see V8)              |
-| V8 on-device legs (drag, screenshots)     | Parity pull done (2026-08-15, see V8); fingertip drag and screenshot tests still owed |
-| V10 Changes screen (session edit journal) | Built; host-verified (see V10). On-device look not yet checked |
+| Piece                                     | State                                                                                                  |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Parity payload (`simoscal_v0_parity.py`)  | Done, deterministic, verified on host                                                                      |
+| Host runner + golden                      | Done (`parity/run_host_parity.py`)                                                                         |
+| Engine decoupled from matplotlib/openpyxl | Done (see "Ordering note")                                                                                 |
+| Gradle/Chaquopy project                   | Builds (AGP 7.4.2 / Gradle 7.6.4 — see below)                                                              |
+| Arm64-emulator parity verdict             | **PASS** — digest match (2026-07-23)                                                                       |
+| Physical-arm64 parity verdict             | **PASS** — Galaxy Tab A9+, arm64-only APK (2026-08-16)                                                    |
+| x86_64 parity                             | **N/A — ABI dropped** (2026-08-16). Never proven, so no longer shipped                                    |
+| V7 Compose shell + the editing flow       | Built; host-verifiable half green (see V7)                                                                 |
+| V7 on-device legs (SAF, share, recovery)  | **Green** — full round trip and recovery on Galaxy Tab A9+ (2026-08-15); rotation and low-storage owed   |
+| V8 boost canvas + calibration editors     | Built; pure rules green (see V8)                                                                           |
+| V8 on-device legs (drag, screenshots)     | Parity pull done (2026-08-15); fingertip drag and screenshot checks owed                                  |
+| V10 Changes screen (session edit journal) | Built; host-verified (see V10). On-device look not yet checked                                             |
+| Tune with Claude U6 courier transport     | Built; 332 JVM tests and both permission gates green. Device round trip still owed                        |
 
 ## V7 — the Compose shell
 
@@ -48,25 +49,28 @@ describing the same artifact the UI ships in.
 UI code is `com.simoscal.android`; the V0/V6 engine plumbing stays in
 `com.simoscal.engine`.
 
-| File                    | What it is responsible for                                       |
-| ----------------------- | ---------------------------------------------------------------- |
-| `BridgeProtocol.kt`     | Envelope build/parse; version and call-identity checks. Pure.     |
-| `BridgeClient.kt`       | Suspending front door; cancellation never aborts an in-flight op. |
-| `ImportStore.kt`        | SAF URI → app-private content-addressed copy, hashed while streaming. |
-| `EditorState.kt`        | Every gate rule, as pure data. Where the safety invariants live.  |
-| `EditorViewModel.kt`    | Sequences bridge calls; persists recovery after each mutation.    |
-| `RecoveryStore.kt`      | DataStore pointer wrapping the engine's own session record.       |
-| `ShareBin.kt`           | FileProvider grant; takes a `Verified` build and nothing else.    |
-| `BoostCurve.kt`         | Boost read model + the two ceilings and every clamp. Pure.        |
-| `BoostUiState.kt`       | Staged boost draft, the stepper's selection, and every transition. Pure. |
-| `BoostPlot.kt`          | Canvas coordinate math, Compose-free so it is JVM-testable.       |
-| `AnalysisModel.kt`      | The `analyze_logs` read model. Parses; never analyses. Pure.      |
-| `AnalysisPlot.kt`       | Analysis axis/tick/thinning math, Compose-free. Pure.             |
-| `AnalysisUiState.kt`    | Picked logs, the run gate, and the stale-report rule. Pure.       |
-| `AnalysisViewModel.kt`  | One bridge call; no session, no bin, nothing to recover.          |
-| `TablesUiState.kt`      | Catalog, table draft, selection, and batch operations. Pure.      |
-| `ChangesUiState.kt`     | The session's journal as flat text, and what needs a reviewer's eyes. Pure. |
-| `ui/`                   | Compose shell, navigation, and the six screens.                   |
+| File                   | What it is responsible for                                                        |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| `BridgeProtocol.kt`    | Envelope build/parse; version and call-identity checks. Pure.                      |
+| `BridgeClient.kt`      | Suspending front door; cancellation never aborts an in-flight op.                  |
+| `ImportStore.kt`       | SAF URI → app-private content-addressed copy, hashed while streaming.              |
+| `EditorState.kt`       | Every gate rule, as pure data. Where the safety invariants live.                   |
+| `EditorViewModel.kt`   | Sequences bridge calls; persists recovery after each mutation.                     |
+| `RecoveryStore.kt`     | DataStore pointer wrapping the engine's own session record.                        |
+| `ShareBin.kt`          | FileProvider grant; takes a `Verified` build and nothing else.                     |
+| `BoostCurve.kt`        | Boost read model + the two ceilings and every clamp. Pure.                         |
+| `BoostUiState.kt`      | Staged boost draft, the stepper's selection, and every transition. Pure.           |
+| `BoostPlot.kt`         | Canvas coordinate math, Compose-free so it is JVM-testable.                        |
+| `AnalysisModel.kt`     | The `analyze_logs` read model. Parses; never analyses. Pure.                       |
+| `AnalysisPlot.kt`      | Analysis axis/tick/thinning math, Compose-free. Pure.                              |
+| `AnalysisUiState.kt`   | Picked logs, the run gate, and the stale-report rule. Pure.                        |
+| `AnalysisViewModel.kt` | One bridge call; no session, no bin, nothing to recover.                           |
+| `TablesUiState.kt`     | Catalog, table draft, selection, and batch operations. Pure.                       |
+| `ChangesUiState.kt`    | The session's journal as flat text, and what needs a reviewer's eyes. Pure.         |
+| `AdviceUiState.kt`     | Bundle/reply/review state, stale invalidation, and the parsed U7 queue. Pure.       |
+| `AdviceStore.kt`       | Recommendation picker → the same private hashed import boundary.                   |
+| `ShareBundle.kt`       | FileProvider grant for generated context bundles; never accepts a bin.             |
+| `ui/`                  | Compose shell, navigation, and the six screens.                                    |
 
 ### The rules the shell enforces
 
@@ -75,7 +79,7 @@ UI code is `com.simoscal.android`; the V0/V6 engine plumbing stays in
   *Cancel*. Both retract the verdict; neither opens a session, because
   `canOpenSession` requires `PreflightState.Passed`.
 - **Export exists only in the verified state** — absent, not disabled. Any edit,
-  undo, or redo invalidates a completed build (`invalidatingBuild()`), so a
+  undo, or redo invalidates a completed build (`invalidatingSessionArtifacts()`), so a
   Share button can never point at a candidate bin that predates the current
   journal.
 - **A gate that did not run is not a pass.** `GateResult.ran` is rendered as its
@@ -83,6 +87,16 @@ UI code is `com.simoscal.android`; the V0/V6 engine plumbing stays in
 - **No permissions.** Enforced by `verifyDebugNoPermissions`, which reads the
   *merged* manifest — so a permission contributed by a library fails the build
   too — and is wired into `check`.
+- **Courier files cross only deliberate boundaries.** Recommendation files and
+  selected datalogs enter through the same content-addressed private copy as the
+  calibration inputs. Generated context bundles leave through `ShareBundle` and
+  the system share sheet. FileProvider exposes `staging/`, not `imports/`, so no
+  picked source file can be shared by this app.
+- **An edit withdraws old advice.** Every successful edit, undo, or redo clears
+  the exported bundle, imported reply, and dry-run queue alongside any verified
+  build. The current reply schema identifies the source bin and XDF but not the
+  mutable working session, so retaining an old queue under a warning would make
+  it actionable after its evidence had gone stale.
 - **A stepped edit is a typed edit.** Plus and minus route through the same
   validation a typed value gets (`nudgingSelection` → `withTypedPoint`), so a
   press that would cross the refusal ceiling or go below zero is *refused with
@@ -213,27 +227,33 @@ Android Studio's bundled JDK 21 fails AGP 7.4.2's `JdkImageTransform` in
 to `../../simoscal` and the library actually lives inside the car-tuning repo
 at `SimosTools/Code`; `SIMOSCAL_DIR` in the environment does the same job.
 
-Expect **226 unit tests passing** and a receipt at
+Expect **332 unit tests passing** and a receipt at
 `engine/build/reports/permissions/debug.txt`:
 
-| Test class            | Cases |
-| --------------------- | ----- |
-| `AnalysisModelTest`   | 18    |
-| `AnalysisPlotTest`    | 11    |
-| `AnalysisUiStateTest` | 14    |
-| `BoostCurveTest`      | 18    |
-| `BoostPlotTest`       | 7     |
-| `BoostUiStateTest`    | 22    |
-| `BridgeProtocolTest`  | 13    |
-| `ChangesUiStateTest`  | 16    |
-| `FormattingTest`      | 15    |
-| `ImportNamingTest`    | 9     |
-| `NumpyPinTest`        | 1     |
-| `EditorStateTest`     | 23    |
-| `SlotsUiStateTest`    | 12    |
-| `TableHeatmapTest`    | 18    |
-| `TablesUiStateTest`   | 24    |
-| `VerifiedParamsTest`  | 5     |
+| Test class             | Cases |
+| ---------------------- | ----- |
+| `AdviceUiStateTest`    | 10    |
+| `AnalysisModelTest`    | 18    |
+| `AnalysisPlotTest`     | 11    |
+| `AnalysisUiStateTest`  | 14    |
+| `BoostCurveTest`       | 18    |
+| `BoostPlotOverlayTest` | 4     |
+| `BoostPlotTest`        | 10    |
+| `BoostUiStateTest`     | 22    |
+| `BridgeProtocolTest`   | 13    |
+| `ChangesUiStateTest`   | 16    |
+| `FormattingTest`       | 15    |
+| `ImportNamingTest`     | 9     |
+| `LambdaUiStateTest`    | 18    |
+| `LimitersUiStateTest`  | 24    |
+| `LogOverlayTest`       | 13    |
+| `NumpyPinTest`         | 1     |
+| `EditorStateTest`      | 24    |
+| `PedalUiStateTest`     | 21    |
+| `SlotsUiStateTest`     | 12    |
+| `TableHeatmapTest`     | 18    |
+| `TablesUiStateTest`    | 36    |
+| `VerifiedParamsTest`   | 5     |
 
 Keep these current. The total is this document's stated pass criterion, so a
 stale number cannot distinguish a complete run from a partial one. The figure has
@@ -244,7 +264,9 @@ repaint, 158 → 159 when the 2026-08-18 split moved `NumpyPinTest` here from
 `simoscal` without updating the total, and 159 → 167 again before V10 (nine cases
 added to `BoostUiStateTest`, one retired from `EditorStateTest`, neither
 recorded) — found by diffing this table against the run rather than by anyone
-noticing. V10 takes it to 183, and V11's analysis suites take it to 226. If you add a test, add it here.
+noticing. V10 takes it to 183, V11's analysis suites take it to 226, and the
+current domain-editor and U6 courier work take it to 332. If you add a test, add
+it here.
 
 The unit tests are deliberately JVM-only and cover the pure layers: the envelope
 contract against the real `org.json`, every state gate, the import naming and
@@ -1281,6 +1303,90 @@ them is a further unit, not a gap in this one.
 > `dispatch()` against real `Logs/BasicsGuide_R14/` CSVs with matplotlib blocked.
 > The SAF multi-pick, the canvas at tablet density, and the memory cost of a
 > real multi-CSV session have not been seen on the Galaxy Tab.
+
+## The table browser is grouped by domain, and the grouping is engine-side
+
+The generic Tables screen used to be one flat list in profile-declaration order
+with a search box over it. That order is the order the map file was *written* —
+a reviewing order — and it scatters the tables that belong to one decision. The
+boost setpoint grid, its two axes, the pressure quotient, the overboost
+threshold and the wastegate feedforward are thirteen tables that answer one
+question, and finding them in a flat list means already knowing their names.
+
+Now every table declares which domain it belongs to, and the browser renders one
+collapsible section per domain, collapsed by default so the shape of the
+calibration is the first thing on screen:
+
+**Boost · Timing · Fueling · Airflow · Limiters · Turbo & thermal ·
+Pedal & torque request · Launch & traction**
+
+### Curated on the spec, not taken from the XDF
+
+The XDF has its own categories and `TableInfo` has always carried them. They are
+the wrong axis for this, in two ways the real catalog demonstrates:
+
+- **They classify by shape as much as by domain.** 15 of the 58 generically
+  editable tables sit in a category called `Axis`, which files
+  `ldp_n_ip_put_sp` — Pressure up throttle setpoint : x axis (engine speed)
+  away from the setpoint it breakpoints. An axis is edited in service of the map
+  it indexes and is looked for beside it, so here it takes that map's group.
+- **Where they do classify by domain, they disagree with the tuner.**
+  `IP_PUT_SP` — Pressure up throttle setpoint is filed under `Airflow`;
+  `ID_PV_AV_FL` — Pedal value threshold for the determination of LV_FL_RAW under
+  `Fuel`.
+
+So `TableSpec` gained a `group`, `TableInfo` and the catalog wire form carry it,
+and the app groups by it. Both facts are kept: `group` is what the browser
+groups by, `categories` is what the XDF said, and the search matches either.
+
+Membership is closed. `simoscal.tune.profile.GROUPS` is the vocabulary and
+`TableSpec.__post_init__` refuses anything else, so a typo is a resolve-time
+failure rather than a ninth heading discovered on the tablet. The SC8S50 map
+declares its classification in one block (`_GROUPS` in `profiles/sc8s50.py`)
+rather than as a keyword on 69 call sites, and `_grouped()` checks it both ways
+— a name in no group and a group naming no table are each an error.
+
+### What needs a group, and what does not
+
+A group is a heading in the *generic browser*, and the browser is offered
+exactly the specs with no `owner`. So the rule is not "every table has a group",
+it is "every table the browser can show has one" — asserted by
+`Profile.ungrouped()` for the base map and by `_ungrouped_is_deliberate()` for
+the switch patch.
+
+The switch patch's ninety owner-locked slot tables therefore go without one on
+purpose. They reach the user through the Boost and Slots screens, which are
+shaped by domain already; filing a per-slot gauge bitmask under an engine-domain
+heading would say something untrue about it. Its two launch-control scalars are
+the only patch tables the generic catalog offers, and both are grouped.
+
+### Collapsed by default, and a search overrides it
+
+Sections start closed and several can be open at once — comparing a boost
+ceiling against a limiter is exactly what this browser is for, and an accordion
+that closed one to open the other would fight that.
+
+A non-empty query forces every section with a match open and drops the sections
+without one. Matches left sitting behind a closed heading would read as no
+matches at all. Clearing the query returns the sections to whatever the user had
+opened, rather than silently rewriting it.
+
+A table that arrives with no group at all — only possible against an engine older
+than the screen — is filed under `Other` rather than dropped. A table missing
+from the browser is calibration someone cannot find, which is worse than an ugly
+heading.
+
+### Verifying this unit
+
+- `TablesUiStateTest` — 11 cases: declared order, an axis filed with its map,
+  collapsed-by-default, multi-open toggling, search-forces-open, search matches
+  the heading, clearing a search preserving what was open, the unknown-heading
+  and no-heading fallbacks, and the wire parse.
+- Engine-side: `test_tune_profile.py` (closed vocabulary, both profiles fully
+  filed, axes filed with their maps, no declared family straddling two groups,
+  and the double-claim / stale / unfiled errors), `test_editing.py` (every
+  catalog row grouped; `group` and `categories` disagreeing on purpose), and
+  `test_bridge.py` (the field is on the wire and populated).
 
 ## Ordering note — V1 came before V0, necessarily
 

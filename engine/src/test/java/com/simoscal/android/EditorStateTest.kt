@@ -66,7 +66,7 @@ class EditorStateTest {
 
         // This is the invariant that keeps a stale candidate bin from being shared
         // as though it contained the edit that was just made.
-        val afterEdit = built.invalidatingBuild()
+        val afterEdit = built.invalidatingSessionArtifacts()
         assertFalse(afterEdit.exportVisible)
         assertNull(afterEdit.verifiedSharePath)
         assertEquals(BuildState.NotBuilt, afterEdit.build)
@@ -75,7 +75,21 @@ class EditorStateTest {
     @Test
     fun `invalidating an unbuilt state leaves it untouched`() {
         val session = openSession()
-        assertTrue(session === session.invalidatingBuild())
+        assertTrue(session === session.invalidatingSessionArtifacts())
+    }
+
+    @Test
+    fun `editing withdraws advice artifacts made from the old session`() {
+        val bundle = ExportedAdviceBundle(
+            path = "/files/staging/bundles/abc/bundle.json",
+            sha256 = "a".repeat(64),
+            bytes = 100,
+            summary = AdviceBundleSummary(1, "SC8S50", 80, 0, emptyList(), 0, 0),
+        )
+        val before = openSession().copy(advice = AdviceUiState().exported(bundle))
+        val after = before.invalidatingSessionArtifacts()
+        assertNull(after.advice.bundle)
+        assertTrue(after.advice.notice!!.contains("Session changed"))
     }
 
     // --------------------------------------------------------------- preflight
@@ -159,7 +173,18 @@ class EditorStateTest {
 
     @Test
     fun `choosing a different bin discards every verdict about the old one`() {
-        val built = openSession().copy(build = verified, canUndo = true, canRedo = true)
+        val bundle = ExportedAdviceBundle(
+            path = "/files/staging/bundles/abc/bundle.json",
+            sha256 = "a".repeat(64),
+            bytes = 100,
+            summary = AdviceBundleSummary(1, "SC8S50", 80, 0, emptyList(), 0, 0),
+        )
+        val built = openSession().copy(
+            build = verified,
+            canUndo = true,
+            canRedo = true,
+            advice = AdviceUiState().exported(bundle),
+        )
         val replaced = built.withBin(file("other.bin", "ffffffffffffffffffffffffffffffff"))
 
         assertEquals(PreflightState.NotRun, replaced.preflight)
@@ -168,6 +193,7 @@ class EditorStateTest {
         assertFalse(replaced.canUndo)
         assertFalse(replaced.canRedo)
         assertFalse(replaced.exportVisible)
+        assertEquals(AdviceUiState(), replaced.advice)
     }
 
     @Test

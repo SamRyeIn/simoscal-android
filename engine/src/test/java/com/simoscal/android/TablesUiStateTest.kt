@@ -23,6 +23,7 @@ class TablesUiStateTest {
         isAxis: Boolean = false,
         rows: Int = 2,
         cols: Int = 3,
+        group: String = "Boost",
     ) = TableSummary(
         space = "base",
         name = name,
@@ -36,6 +37,7 @@ class TablesUiStateTest {
         ndim = 2,
         reversible = reversible,
         isAxis = isAxis,
+        group = group,
         categories = listOf("boost"),
     )
 
@@ -329,4 +331,179 @@ class TablesUiStateTest {
         assertEquals(2, parsed.values.size)
         assertEquals(listOf(3.0, 4.0), parsed.values[1])
     }
+
+    // ------------------------------------------------------------------ groups
+
+    @Test
+    fun `the catalog is filed under its domain headings, in declared order`() {
+        val state = TablesUiState().withCatalog(
+            listOf(
+                summary(name = "pedal_dct_high", group = "Pedal & torque request"),
+                summary(name = "lambda_basic", group = "Fueling"),
+                summary(name = "put_setpoint", group = "Boost"),
+                summary(name = "put_setpoint_rpm_axis", group = "Boost", isAxis = true),
+            )
+        )
+
+        // Boost before Fueling before Pedal, whatever order the engine listed
+        // them in — the engine's order is the profile's, which is a reviewing
+        // order, not a browsing one.
+        assertEquals(
+            listOf("Boost", "Fueling", "Pedal & torque request"),
+            state.groups.map { it.name },
+        )
+        assertEquals(2, state.groups.first().tables.size)
+    }
+
+    @Test
+    fun `an axis is filed with the map it indexes, not in a bucket of its own`() {
+        val state = TablesUiState().withCatalog(
+            listOf(
+                summary(name = "put_setpoint", group = "Boost"),
+                summary(name = "put_setpoint_rpm_axis", group = "Boost", isAxis = true),
+            )
+        )
+
+        assertEquals(1, state.groups.size)
+        assertEquals(
+            listOf("put_setpoint", "put_setpoint_rpm_axis"),
+            state.groups.single().tables.map { it.name },
+        )
+    }
+
+    @Test
+    fun `every section starts collapsed`() {
+        val state = TablesUiState().withCatalog(listOf(summary(), summary(name = "b")))
+        assertTrue(state.groups.none { it.expanded })
+    }
+
+    @Test
+    fun `toggling a heading opens it, and opens only it`() {
+        val state = TablesUiState().withCatalog(
+            listOf(
+                summary(name = "put_setpoint", group = "Boost"),
+                summary(name = "lambda_basic", group = "Fueling"),
+            )
+        )
+
+        val opened = state.togglingGroup("Boost")
+        assertEquals(listOf(true, false), opened.groups.map { it.expanded })
+
+        // Several open at once: comparing a boost ceiling against a limiter is
+        // what this browser is for, and an accordion would fight that.
+        val both = opened.togglingGroup("Fueling")
+        assertTrue(both.groups.all { it.expanded })
+
+        assertFalse(both.togglingGroup("Boost").groups.first().expanded)
+    }
+
+    @Test
+    fun `a search opens every heading that can answer it`() {
+        val state = TablesUiState().withCatalog(
+            listOf(
+                summary(name = "put_setpoint", group = "Boost"),
+                summary(name = "lambda_basic", group = "Fueling"),
+            )
+        ).copy(query = "lambda")
+
+        // Only the section with a match survives, and it is open: matches left
+        // behind a closed heading would read as no matches at all.
+        assertEquals(listOf("Fueling"), state.groups.map { it.name })
+        assertTrue(state.groups.single().expanded)
+    }
+
+    @Test
+    fun `a search matches the domain heading itself`() {
+        val state = TablesUiState().withCatalog(
+            listOf(
+                summary(name = "put_setpoint", group = "Boost"),
+                summary(name = "lambda_basic", group = "Fueling"),
+            )
+        ).copy(query = "fueling")
+
+        assertEquals(listOf("lambda_basic"), state.visibleCatalog.map { it.name })
+    }
+
+    @Test
+    fun `clearing a search returns the sections to how the user left them`() {
+        val state = TablesUiState().withCatalog(
+            listOf(
+                summary(name = "put_setpoint", group = "Boost"),
+                summary(name = "lambda_basic", group = "Fueling"),
+            )
+        ).togglingGroup("Boost")
+
+        val searched = state.copy(query = "lambda")
+        assertTrue(searched.groups.single().expanded)
+
+        // Searching forces sections open for the duration of the query; it must
+        // not silently rewrite what the user had opened.
+        val cleared = searched.copy(query = "")
+        assertEquals(listOf(true, false), cleared.groups.map { it.expanded })
+    }
+
+    @Test
+    fun `a table the engine did not file is shown, never dropped`() {
+        val state = TablesUiState().withCatalog(
+            listOf(
+                summary(name = "put_setpoint", group = "Boost"),
+                summary(name = "mystery", group = ""),
+            )
+        )
+
+        // A missing group is calibration someone cannot find. An ugly heading at
+        // the bottom beats an omission.
+        assertEquals(listOf("Boost", UNGROUPED), state.groups.map { it.name })
+        assertEquals(listOf("mystery"), state.groups.last().tables.map { it.name })
+    }
+
+    @Test
+    fun `a heading this app does not know still renders, after the known ones`() {
+        val state = TablesUiState().withCatalog(
+            listOf(
+                summary(name = "future", group = "Transmission"),
+                summary(name = "put_setpoint", group = "Boost"),
+            )
+        )
+
+        // An app older than its engine shows the new section last rather than
+        // hiding the tables under it.
+        assertEquals(listOf("Boost", "Transmission"), state.groups.map { it.name })
+    }
+
+    @Test
+    fun `the unfiled heading sorts below even an unknown one`() {
+        val state = TablesUiState().withCatalog(
+            listOf(
+                summary(name = "mystery", group = ""),
+                summary(name = "future", group = "Transmission"),
+                summary(name = "put_setpoint", group = "Boost"),
+            )
+        )
+
+        assertEquals(listOf("Boost", "Transmission", UNGROUPED), state.groups.map { it.name })
+    }
+
+    @Test
+    fun `the group is parsed off the wire`() {
+        val json = JSONObject(
+            """{"space":"base","name":"put_setpoint","symbol":"IP_PUT_SP",
+               "description":"Pressure up throttle setpoint","uniqueid_hex":"0x7d41a",
+               "units":"hPa","shape":[4,6],"ndim":2,"reversible":true,
+               "is_axis":false,"group":"Boost","categories":["Airflow"]}"""
+        )
+        val parsed = TableSummary.fromJson(json)
+
+        // The curated group and the XDF's own category disagree on purpose: the
+        // XDF files the boost setpoint under "Airflow".
+        assertEquals("Boost", parsed.group)
+        assertEquals(listOf("Airflow"), parsed.categories)
+    }
+
+    @Test
+    fun `an engine that sends no group leaves it blank rather than guessing`() {
+        val json = JSONObject("""{"space":"base","name":"t","categories":[]}""")
+        assertEquals("", TableSummary.fromJson(json).group)
+    }
+
 }

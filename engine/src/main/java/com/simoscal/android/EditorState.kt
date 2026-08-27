@@ -43,7 +43,7 @@ sealed interface BuildState {
 
     /**
      * Every gate passed. [sharePath] is the app-private candidate bin; it is the
-     * only thing the app ever hands to another app.
+     * only bin the app ever hands to another app.
      */
     data class Verified(
         val revision: String,
@@ -114,6 +114,7 @@ data class EditorUiState(
     val tables: TablesUiState = TablesUiState(),
     val slots: SlotsUiState = SlotsUiState(),
     val changes: ChangesUiState = ChangesUiState(),
+    val advice: AdviceUiState = AdviceUiState(),
     val busy: Boolean = false,
     val error: UserFacingError? = null,
 ) {
@@ -232,15 +233,17 @@ data class EditorUiState(
 }
 
 /**
- * Any change to the calibration invalidates a completed build.
+ * Any change to the calibration invalidates every artifact made from old values.
  *
- * This is the rule that keeps [EditorUiState.exportVisible] honest: without
- * it, editing a table after a successful build would leave the Share button on
- * screen still pointing at the *previous* candidate bin. Call this from every
- * path that mutates the session — edit, undo, redo.
+ * This keeps both share paths honest: a verified bin must not predate the latest
+ * edit, and a context bundle or recommendations review must not describe values
+ * the session no longer holds. Call this from every edit, undo, and redo path.
  */
-fun EditorUiState.invalidatingBuild(): EditorUiState =
-    if (build is BuildState.NotBuilt) this else copy(build = BuildState.NotBuilt)
+fun EditorUiState.invalidatingSessionArtifacts(): EditorUiState {
+    val nextAdvice = advice.invalidatedBySessionChange()
+    return if (build is BuildState.NotBuilt && nextAdvice === advice) this
+    else copy(build = BuildState.NotBuilt, advice = nextAdvice)
+}
 
 /**
  * Retract a blocked verdict, back to un-checked.
@@ -279,6 +282,7 @@ private fun EditorUiState.forgettingPreviousInputs(): EditorUiState = copy(
     lambda = LambdaUiState(),
     tables = TablesUiState(),
     changes = ChangesUiState(),
+    advice = AdviceUiState(),
     error = null,
 )
 

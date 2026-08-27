@@ -5,17 +5,17 @@ treated as a policy violation rather than a mistake. Every answer below is
 followed by the thing in this repo that makes it true, so it can be re-checked
 before each submission instead of copied forward on trust.
 
-**Verified against commit `cf324b7`, 2026-08-20.**
+**Verified against `feat/tune-with-claude-courier`, 2026-08-25.**
 
 ## The form
 
-| Question                                                     | Answer | Why that is true                                                                                     |
-|--------------------------------------------------------------|--------|------------------------------------------------------------------------------------------------------|
-| Does your app collect or share any of the required user data types? | **No** | No network permission exists, so transmission is impossible. See the evidence section below.          |
-| Is all of the user data collected by your app encrypted in transit? | n/a    | Not asked once collection is "No" — there is no transit.                                              |
-| Do you provide a way for users to request that their data is deleted? | n/a    | Not asked once collection is "No". Uninstalling removes everything; there is no server-side copy.     |
-| Does your app collect data from children?                     | **No** | Nothing is collected from anyone.                                                                     |
-| Data types: location, personal info, financial, health, messages, photos, files, contacts, calendar, app activity, web browsing, app info and performance, device or other IDs | **None selected** | None are read, and none could be transmitted if they were. |
+| Console question                          | Answer            | Why that is true                                                                                                                                                                              |
+| ----------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Collect/share required user data types?   | **No**            | No network permission exists. The only off-device transfer is an explicit user-initiated Android share-sheet action, which is outside Play's collection/sharing definition. See below.       |
+| Is collected data encrypted in transit?   | n/a               | Not asked once collection is "No" — there is no transit.                                                                                                                                     |
+| Can users request data deletion?          | n/a               | Not asked once collection is "No". Uninstalling removes everything; there is no server-side copy.                                                                                           |
+| Does the app collect data from children?  | **No**            | Nothing is collected from anyone.                                                                                                                                                             |
+| Which required data types are collected?  | **None selected** | None are read for collection, and none could be uploaded if they were.                                                                                                                        |
 
 ### The one that needs care
 
@@ -25,9 +25,13 @@ transmission off the device. Data that is only read and stored locally, never
 sent anywhere, is not collected and must not be declared as collected — a
 false positive here is as wrong as a false negative.
 
-If a future version ever gains network access — sync, backup, a crash reporter,
-a "share your tune" feature — this answer changes to **Yes / Files and docs**,
-and the privacy policy changes with it. That is the trigger to revisit this file.
+The app can now share a verified bin or a generated context bundle, but only
+through an explicit Android share-sheet action to a destination the person
+chooses. Play excludes that user-initiated transfer from its collection and
+sharing definition. If a future version gains app-directed network access — an
+API call, sync, backup, crash reporting, analytics, or an automatic upload — this
+answer changes to **Yes / Files and docs**, and the privacy policy changes with
+it. That is the trigger to revisit this file.
 
 ## Evidence, so this can be re-verified rather than trusted
 
@@ -61,10 +65,11 @@ and the privacy policy changes with it. That is the trigger to revisit this file
 
 4. **Sharing is user-initiated and narrowly scoped.**
    `engine/src/main/res/xml/file_paths.xml` exposes **only** `staging/` through
-   the FileProvider. The `imports/` directory holding your source bin and XDFs is
-   deliberately not exposed, so nothing you imported can be handed to another app
-   this way. The provider is `android:exported="false"` and works by per-share
-   URI grant.
+   the FileProvider. Verified bins and generated context bundles land there. The
+   `imports/` directory holding source bins, XDFs, datalogs, and recommendation
+   files is deliberately not exposed, so nothing imported can be handed to
+   another app this way. The provider is `android:exported="false"` and works by
+   per-share URI grant.
 
 5. **No system backup.** `android:allowBackup="false"` in the manifest, so
    Android does not copy app data off the device.

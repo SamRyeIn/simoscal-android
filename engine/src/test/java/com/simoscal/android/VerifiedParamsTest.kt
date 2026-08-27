@@ -42,6 +42,8 @@ class VerifiedParamsTest {
             "switch_patch_xdf",
             "source_bin",
             "reference_bin",
+            "log",
+            "advice",
         )
     }
 

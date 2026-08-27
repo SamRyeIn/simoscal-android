@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Only the staging directory is shareable, and only the built candidate bin ever
-  lands there. The imports directory — which holds the person's source bin and
-  XDFs — is deliberately absent: nothing the app imported can be handed to
-  another app through this provider.
+  Only the staging directory is shareable. Verified candidate bins and generated
+  context bundles land there. The imports directory — which holds the person's
+  source bin, XDFs, logs, and recommendations — is deliberately absent: nothing
+  the app imported can be handed to another app through this provider.
 -->
 <paths>
     <files-path
-        name="staged_bins"
+        name="staged_exports"
         path="staging/" />
 </paths>

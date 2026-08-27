@@ -46,6 +46,7 @@ class ImportNamingTest {
         assertEquals("$hash.bin", ImportStore.contentAddressedName(hash, InputKind.BIN))
         assertEquals("$hash.xdf", ImportStore.contentAddressedName(hash, InputKind.XDF))
         assertEquals("$hash.patch.xdf", ImportStore.contentAddressedName(hash, InputKind.SWITCH_PATCH_XDF))
+        assertEquals("$hash.advice.json", ImportStore.contentAddressedName(hash, InputKind.RECOMMENDATIONS))
     }
 
     @Test

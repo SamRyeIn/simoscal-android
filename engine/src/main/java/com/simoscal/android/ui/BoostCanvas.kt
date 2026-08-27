@@ -26,7 +26,7 @@ import com.simoscal.android.BoostCurveModel
 import com.simoscal.android.BoostPlotGeometry
 import com.simoscal.android.BoostPlotScale
 import com.simoscal.android.OverlayPull
-import kotlin.math.max
+import com.simoscal.android.slotLabelLadder
 import kotlin.math.roundToInt
 
 /**
@@ -69,6 +69,12 @@ internal fun slotColor(slot: Int): Color = SlotColors[slot] ?: PromoPalette.Text
  * boost number out of, so how tall it is drawn is a decision for the screen
  * that knows how much room there is, not a constant in here.
  */
+/**
+ * Below this, in either direction, the canvas is too small to draw a plot in —
+ * see the guard in [BoostCanvas].
+ */
+private const val MIN_PLOT_PX = 120f
+
 @OptIn(ExperimentalTextApi::class)
 @Composable
 fun BoostCanvas(
@@ -114,6 +120,13 @@ fun BoostCanvas(
                 }
             },
     ) {
+        // The column that owns this canvas hands it whatever height is left over
+        // after the fixed rows, and opening the IME in landscape can leave almost
+        // nothing. Every label on this plot is measured against the canvas size,
+        // so an offset past the edge throws instead of clipping — and a plot a
+        // few pixels tall says nothing worth risking that for.
+        if (size.width < MIN_PLOT_PX || size.height < MIN_PLOT_PX) return@Canvas
+
         val geometry = BoostPlotGeometry(size.width, size.height)
 
         drawFrameAndGrid(geometry, scale, measurer)
@@ -384,18 +397,15 @@ private fun DrawScope.drawSlotLabels(
     measurer: TextMeasurer,
     activeSlot: Int,
 ) {
-    val minimumGap = 26f
-    var previousY = Float.NEGATIVE_INFINITY
-    labels.sortedBy { it.second.y }.forEach { (slot, point, color) ->
-        val y = max(point.y - 8f, previousY + minimumGap)
-        previousY = y
+    val colors = labels.associate { (slot, _, color) -> slot to color }
+    slotLabelLadder(labels.map { (slot, point, _) -> slot to point.y }, size.height).forEach { (slot, y) ->
         drawText(
             textMeasurer = measurer,
             text = "$slot",
             topLeft = Offset(geometry.right + 8f, y),
             style = TextStyle(
                 fontSize = 11.sp,
-                color = color,
+                color = colors.getValue(slot),
                 fontFamily = FontFamily.Monospace,
                 fontWeight = if (slot == activeSlot) FontWeight.Bold else FontWeight.Normal,
             ),

@@ -25,6 +25,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
 
     private val bridge = BridgeClient(application)
     private val imports = ImportStore(application)
+    private val adviceStore = AdviceStore(application)
     private val recovery = RecoveryStore(application)
 
     private val _state = MutableStateFlow(EditorUiState())
@@ -79,6 +80,13 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                                     message = "A datalog is not an editor input — " +
                                         "open Analyze to read logs.",
                                     advanced = "InputKind.LOG reached EditorViewModel.onFilePicked",
+                                )
+                            )
+                            InputKind.RECOMMENDATIONS -> current.copy(
+                                error = UserFacingError(
+                                    code = "WRONG_INPUT_KIND",
+                                    message = "Use Tune with Claude to import recommendations.",
+                                    advanced = "InputKind.RECOMMENDATIONS reached EditorViewModel.onFilePicked",
                                 )
                             )
                         }.copy(busy = false)
@@ -230,6 +238,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                         canUndo = outcome.result.optBoolean("can_undo", false),
                         canRedo = outcome.result.optBoolean("can_redo", false),
                         build = BuildState.NotBuilt,
+                        advice = AdviceUiState(),
                     )
                     is BridgeOutcome.Failed -> state.copy(
                         busy = false,
@@ -271,7 +280,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                         busy = false,
                         canUndo = outcome.result.optBoolean("can_undo", false),
                         canRedo = outcome.result.optBoolean("can_redo", false),
-                    ).invalidatingBuild()
+                    ).invalidatingSessionArtifacts()
                     is BridgeOutcome.Failed -> state.copy(busy = false, error = outcome.toUserFacing())
                 }
             }
@@ -378,6 +387,170 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             persistRecovery()
         }
     }
+
+    // ---------------------------------------------------------- Tune with Claude
+
+    fun onAdviceNotesChanged(notes: String) =
+        _state.update { it.copy(advice = it.advice.withNotes(notes)) }
+
+    fun removeAdviceLog(file: ImportedFile) =
+        _state.update { it.copy(advice = it.advice.withoutLog(file)) }
+
+    /** Import selected logs serially so one busy state covers the whole picker result. */
+    fun onAdviceLogsPicked(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true, advice = it.advice.importingLogs()) }
+            val imported = mutableListOf<ImportedFile>()
+            for (uri in uris) {
+                val result = runCatching { imports.importFile(uri, InputKind.LOG) }
+                val file = result.getOrElse { error ->
+                    _state.update {
+                        it.copy(
+                            busy = false,
+                            advice = it.advice.failed(
+                                UserFacingError(
+                                    code = "IMPORT_FAILED",
+                                    message = (error as? ImportFailure)?.reason
+                                        ?: "Those datalogs could not be imported.",
+                                    advanced = error.toString(),
+                                )
+                            ),
+                        )
+                    }
+                    return@launch
+                }
+                imported += file
+            }
+            _state.update { it.copy(busy = false, advice = it.advice.withLogs(imported)) }
+        }
+    }
+
+    /** Export the current session as an engine-written, shareable context bundle. */
+    fun exportAdviceBundle() {
+        val current = _state.value
+        val sessionId = current.sessionId ?: return
+        if (current.busy || current.advice.busy) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true, advice = it.advice.exporting()) }
+            val advice = _state.value.advice
+            val outcome = bridge.call(
+                op = "advice_bundle",
+                params = params {
+                    put("session_id", sessionId)
+                    put("staging_dir", imports.stagingDir().absolutePath)
+                    put("notes", advice.notes)
+                    if (advice.logs.isNotEmpty()) {
+                        put("logs", JSONArray().apply {
+                            advice.logs.forEach { file ->
+                                put(
+                                    JSONObject()
+                                        .putVerified("log", file)
+                                        .put("display_name", file.displayName)
+                                )
+                            }
+                        })
+                    }
+                },
+            )
+            _state.update { state ->
+                when (outcome) {
+                    is BridgeOutcome.Ok -> {
+                        val parsed = runCatching { ExportedAdviceBundle.fromJson(outcome.result) }
+                        parsed.fold(
+                            onSuccess = { bundle ->
+                                state.copy(busy = false, advice = state.advice.exported(bundle))
+                            },
+                            onFailure = { error ->
+                                state.copy(
+                                    busy = false,
+                                    advice = state.advice.failed(
+                                        UserFacingError(
+                                            code = AppErrorCode.MALFORMED_RESPONSE,
+                                            message = "The bundle result came back in a form the app could not read.",
+                                            advanced = error.toString(),
+                                        )
+                                    ),
+                                )
+                            },
+                        )
+                    }
+                    is BridgeOutcome.Failed -> state.copy(
+                        busy = false,
+                        advice = state.advice.failed(outcome.toUserFacing()),
+                    )
+                }
+            }
+        }
+    }
+
+    /** Copy a picked reply, then replay it through the engine's real guards. */
+    fun onAdviceReplyPicked(uri: Uri) {
+        val sessionId = _state.value.sessionId ?: return
+        if (_state.value.busy || _state.value.advice.busy) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true, advice = it.advice.importingReply()) }
+            val imported = runCatching { adviceStore.importRecommendations(uri) }
+            val file = imported.getOrElse { error ->
+                _state.update {
+                    it.copy(
+                        busy = false,
+                        advice = it.advice.failed(
+                            UserFacingError(
+                                code = "IMPORT_FAILED",
+                                message = (error as? ImportFailure)?.reason
+                                    ?: "That recommendations file could not be imported.",
+                                advanced = error.toString(),
+                            )
+                        ),
+                    )
+                }
+                return@launch
+            }
+
+            _state.update { it.copy(advice = it.advice.reviewing(file)) }
+            val outcome = bridge.call(
+                op = "advice_review",
+                params = params {
+                    put("session_id", sessionId)
+                    putVerified("advice", file)
+                },
+            )
+            _state.update { state ->
+                when (outcome) {
+                    is BridgeOutcome.Ok -> {
+                        val parsed = runCatching { AdviceReview.fromJson(outcome.result) }
+                        parsed.fold(
+                            onSuccess = { review ->
+                                state.copy(busy = false, advice = state.advice.reviewed(review))
+                            },
+                            onFailure = { error ->
+                                state.copy(
+                                    busy = false,
+                                    advice = state.advice.failed(
+                                        UserFacingError(
+                                            code = AppErrorCode.MALFORMED_RESPONSE,
+                                            message = "The review came back in a form the app could not read.",
+                                            advanced = error.toString(),
+                                        )
+                                    ),
+                                )
+                            },
+                        )
+                    }
+                    is BridgeOutcome.Failed -> state.copy(
+                        busy = false,
+                        advice = state.advice.failed(outcome.toUserFacing()),
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissAdviceError() =
+        _state.update { it.copy(advice = it.advice.errorDismissed()) }
 
     // ------------------------------------------------------------------ boost
 
@@ -534,7 +707,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                         ),
                         canUndo = outcome.result.optBoolean("can_undo", state.canUndo),
                         canRedo = outcome.result.optBoolean("can_redo", state.canRedo),
-                    ).invalidatingBuild()
+                    ).invalidatingSessionArtifacts()
                     // The engine's own sentence, shown at the control. A refused
                     // lean setpoint is a fact about the value staged here — not
                     // something that put the session in a bad state.
@@ -558,6 +731,18 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
 
     fun onPedalPointTyped(index: Int, factor: Double) =
         _state.update { it.copy(pedal = it.pedal.withTypedPoint(index, factor)) }
+
+    fun onPedalPointSelected(index: Int) =
+        _state.update { it.copy(pedal = it.pedal.selectingPoint(index)) }
+
+    fun onPedalSelectionStepped(delta: Int) =
+        _state.update { it.copy(pedal = it.pedal.steppingSelection(delta)) }
+
+    fun onPedalNudgeStepChanged(factor: Double) =
+        _state.update { it.copy(pedal = it.pedal.withNudgeStep(factor)) }
+
+    fun onPedalNudged(direction: Int) =
+        _state.update { it.copy(pedal = it.pedal.nudgingSelection(direction)) }
 
     fun onPedalDiscard() = _state.update { it.copy(pedal = it.pedal.discardingDraft()) }
 
@@ -597,7 +782,21 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun openPedalMap(summary: TableSummary) {
-        val sessionId = _state.value.sessionId ?: return
+        val current = _state.value
+        val sessionId = current.sessionId ?: return
+        if (current.pedal.detail?.summary?.let { it.space == summary.space && it.name == summary.name } == true) {
+            return
+        }
+        if (current.pedal.dirty) {
+            _state.update {
+                it.copy(
+                    pedal = it.pedal.copy(
+                        notice = "Apply or discard the change to ${it.pedal.columnRpm?.display("%.0f")} rpm first."
+                    )
+                )
+            }
+            return
+        }
         viewModelScope.launch {
             _state.update { it.copy(pedal = it.pedal.copy(loading = true, notice = null)) }
             val outcome = bridge.call(
@@ -686,7 +885,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                             ),
                             canUndo = outcome.result.optBoolean("can_undo", state.canUndo),
                             canRedo = outcome.result.optBoolean("can_redo", state.canRedo),
-                        ).invalidatingBuild()
+                        ).invalidatingSessionArtifacts()
                     }
                     is BridgeOutcome.Failed -> state.copy(
                         busy = false,
@@ -795,7 +994,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                             ),
                             canUndo = outcome.result.optBoolean("can_undo", state.canUndo),
                             canRedo = outcome.result.optBoolean("can_redo", state.canRedo),
-                        ).invalidatingBuild()
+                        ).invalidatingSessionArtifacts()
                     }
                     // A refusal is the engine's own sentence, shown where the
                     // control is rather than as a global error: it is a fact
@@ -921,7 +1120,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                             canUndo = outcome.result.optBoolean("can_undo", state.canUndo),
                             canRedo = outcome.result.optBoolean("can_redo", state.canRedo),
                             boost = state.boost.applied(receipt),
-                        ).invalidatingBuild()
+                        ).invalidatingSessionArtifacts()
                     }
                     // A guard refusal is the editor's business, not a global error:
                     // it names a value the person can still change, and it belongs
@@ -965,7 +1164,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                         busy = false,
                         canUndo = outcome.result.optBoolean("can_undo", state.canUndo),
                         canRedo = outcome.result.optBoolean("can_redo", state.canRedo),
-                    ).invalidatingBuild()
+                    ).invalidatingSessionArtifacts()
                     is BridgeOutcome.Failed -> state.copy(
                         busy = false,
                         boost = state.boost.copy(notice = outcome.message),
@@ -1047,7 +1246,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                         canUndo = outcome.result.optBoolean("can_undo", state.canUndo),
                         canRedo = outcome.result.optBoolean("can_redo", state.canRedo),
                         slots = state.slots.withSettings(outcome.result.slotSettings()),
-                    ).invalidatingBuild()
+                    ).invalidatingSessionArtifacts()
                     // A refusal names a rule the person can read — it belongs on
                     // the row it came from, not in a snackbar that scrolls away.
                     is BridgeOutcome.Failed -> state.copy(
@@ -1108,6 +1307,9 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
 
     fun onTableQueryChanged(query: String) =
         _state.update { it.copy(tables = it.tables.copy(query = query)) }
+
+    fun onTableGroupToggled(name: String) =
+        _state.update { it.copy(tables = it.tables.togglingGroup(name)) }
 
     fun onTableClosed() = _state.update { it.copy(tables = it.tables.closingDetail()) }
 
@@ -1260,7 +1462,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                             canUndo = outcome.result.optBoolean("can_undo", state.canUndo),
                             canRedo = outcome.result.optBoolean("can_redo", state.canRedo),
                             tables = state.tables.applied(receipt),
-                        ).invalidatingBuild()
+                        ).invalidatingSessionArtifacts()
                     }
                     is BridgeOutcome.Failed -> state.copy(
                         busy = false,

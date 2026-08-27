@@ -276,10 +276,10 @@ dependencies {
  * Fails the build if the *merged* manifest declares any permission.
  *
  * The app never touches the network and never talks to the vehicle: it edits
- * a file the person picked and hands the result to SimosTools through the share
- * sheet. A permission-free manifest is how that claim is enforced rather than
- * merely documented — and it is checked on the merged manifest, so a permission
- * contributed by a *library* fails it too.
+ * files the person picked, hands a verified bin to SimosTools, and can share a
+ * generated context bundle through the share sheet. A permission-free manifest
+ * is how that claim is enforced rather than merely documented — and it is checked
+ * on the merged manifest, so a permission contributed by a *library* fails it too.
  */
 abstract class VerifyNoPermissionsTask : DefaultTask() {
 

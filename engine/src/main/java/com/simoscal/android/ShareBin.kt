@@ -8,8 +8,9 @@ import java.io.File
 /**
  * Hands one verified bin to another app (in practice, SimosTools) to flash.
  *
- * This is the only path by which anything leaves the app, so it is
- * deliberately narrow:
+ * This is the only path by which a bin leaves the app, so it is deliberately
+ * narrow. Context bundles use the separate [ShareBundle] path and cannot be
+ * passed here:
  *
  * - it takes a [BuildState.Verified] and nothing else, so an unverified or
  *   stale build has no way to reach the share sheet even by a caller's mistake;

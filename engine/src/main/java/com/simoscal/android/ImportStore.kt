@@ -12,7 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * One imported input: a bin or an XDF, copied into app-private storage.
+ * One imported input, copied into app-private storage.
  *
  * The engine only ever accepts a *path plus hash* it can re-verify, so this is
  * the shape every downstream bridge call needs.
@@ -187,4 +187,5 @@ enum class InputKind(val extension: String, val fallbackName: String, val mimeTy
      * trusting anyway.
      */
     LOG(".csv", "datalog.csv", arrayOf("*/*")),
+    RECOMMENDATIONS(".advice.json", "recommendations.json", arrayOf("application/json", "text/json", "*/*")),
 }
