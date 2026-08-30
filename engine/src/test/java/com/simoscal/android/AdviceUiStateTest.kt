@@ -92,6 +92,29 @@ class AdviceUiStateTest {
                 .put("message", "must not be empty")))))
 
     @Test
+    fun `a two-dimensional preview flattens row-major instead of failing the import`() {
+        // The engine sends a preview in the table's own shape. A 10x16 map arrives
+        // as rows, and reading a row as a double used to throw and take the whole
+        // import down with it — every recommendation against a 2-D table.
+        val grid = JSONArray()
+            .put(JSONArray().put(1.0).put(2.0).put(3.0))
+            .put(JSONArray().put(4.0).put(5.0).put(6.0))
+        val item = recommendation().apply {
+            getJSONObject("preview")
+                .put("before", grid)
+                .put("requested", grid)
+                .put("encoded", grid)
+        }
+        val review = AdviceReview.fromJson(
+            reviewJson().put("queued", JSONArray().put(item))
+        )
+        assertEquals(
+            listOf(1.0, 2.0, 3.0, 4.0, 5.0, 6.0),
+            review.queued.single().preview.before,
+        )
+    }
+
+    @Test
     fun `bundle result keeps the engine summary intact`() {
         val bundle = bundle()
         assertEquals("SC8S50", bundle.summary.profile)

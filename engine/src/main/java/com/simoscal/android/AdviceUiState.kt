@@ -368,10 +368,23 @@ private fun JSONObject.adviceStringList(key: String): List<String> {
     return (0 until array.length()).map { index -> array.getString(index) }
 }
 
-private fun JSONObject.adviceDoubleList(key: String): List<Double> {
-    val array = getJSONArray(key)
-    return (0 until array.length()).map { index -> array.getDouble(index) }
-}
+private fun JSONObject.adviceDoubleList(key: String): List<Double> =
+    getJSONArray(key).flattenDoubles()
+
+/** Row-major flattening of a preview array.
+ *
+ * The engine sends a preview in the table's own shape, so a 2-D table arrives as
+ * a list of rows, not a flat list of cells — and nearly every table worth a
+ * recommendation is 2-D. Reading one row as a double threw
+ * `JSONException: Value [1,1,...] cannot be converted to double` and failed the
+ * whole import. Row-major is the order the change's own `array` operand already
+ * uses, so a preview and the values that produced it read the same way round.
+ */
+private fun JSONArray.flattenDoubles(): List<Double> =
+    (0 until length()).flatMap { index ->
+        val element = get(index)
+        if (element is JSONArray) element.flattenDoubles() else listOf(getDouble(index))
+    }
 
 private fun JSONArray.objects(): List<JSONObject> =
     (0 until length()).map { index -> getJSONObject(index) }
