@@ -10,7 +10,11 @@ package com.simoscal.android
  */
 
 /** Workspace destinations, available only once a session is open. */
-enum class Destination { TABLES, BOOST, LIMITERS, PEDAL, LAMBDA, SLOTS, CHANGES, BUILD }
+enum class Destination {
+    TABLES, BOOST, LIMITERS, PEDAL, LAMBDA, SLOTS, CHANGES, BUILD,
+    /** The recommendation review queue. */
+    ADVICE,
+}
 
 sealed interface PreflightState {
     /** Inputs are not both chosen yet, or nothing has been checked. */
@@ -155,8 +159,13 @@ data class EditorUiState(
         // rather than refusing to open — a degraded screen, not an error.
         // Pedal joins these for the same reason: the driver-interpretation maps
         // are base calibration and need no patch.
+        // Review joins these rather than being gated on a reply being
+        // loaded: the screen's own empty state is what says there is
+        // nothing to review, and it says which *kind* of nothing — a
+        // disabled tab could only say "not now".
         Destination.TABLES, Destination.CHANGES, Destination.BUILD,
-        Destination.LIMITERS, Destination.PEDAL, Destination.LAMBDA -> sessionOpen
+        Destination.LIMITERS, Destination.PEDAL, Destination.LAMBDA,
+        Destination.ADVICE -> sessionOpen
         // Boost and Slots both live in the switch-patch space, which only exists
         // if its XDF was imported. Same gate, same reason.
         Destination.BOOST, Destination.SLOTS -> sessionOpen && switchPatchXdf != null

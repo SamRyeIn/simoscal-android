@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
@@ -253,6 +254,25 @@ fun SimoscalApp(viewModel: EditorViewModel, analysisViewModel: AnalysisViewModel
                 composable("slots") { SlotsScreen(viewModel = viewModel) }
                 composable("changes") { ChangesScreen(viewModel = viewModel) }
                 composable("build") { BuildScreen(viewModel = viewModel) }
+                composable("advice") {
+                    AdviceScreen(
+                        viewModel = viewModel,
+                        // Show-me is a normal navigation, not a special one:
+                        // it goes through the same graph the nav bar uses, so
+                        // the back stack behaves the way it does everywhere
+                        // else and the accepted item is picked up by that
+                        // screen's own load, not by anything routed here.
+                        onShowMe = { destination ->
+                            navController.navigate(routeFor(destination)) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                    )
+                }
             }
         }
     }
@@ -315,12 +335,21 @@ private fun destinationItems(): List<DestinationItem> = listOf(
     // put the unverified list on the far side of the gate that verifies it.
     DestinationItem(Destination.CHANGES, "changes", "Changes", Icons.Filled.Edit),
     DestinationItem(Destination.BUILD, "build", "Build", Icons.Filled.Build),
+    // After Build, because that is where a reply is imported: the review
+    // queue only ever has something in it once the Build screen has put it
+    // there, and a tab that is empty until you have visited the one before
+    // it belongs after that one.
+    DestinationItem(Destination.ADVICE, "advice", "Review", Icons.Filled.Check),
     // Last, and always enabled. It reads datalogs from the *previous* flash, so
     // it sits after the gate rather than inside the edit → verify run: it is
     // where a person goes to find out whether the last bin actually worked,
     // which is the question that starts the next revision.
     DestinationItem(null, "analyze", "Analyze", Icons.Filled.Info),
 )
+
+/** The route each workspace destination lives at — the nav bar's own table. */
+private fun routeFor(destination: Destination): String =
+    destinationItems().first { it.destination == destination }.route
 
 /**
  * The non-dismissible dead end for a bin that cannot be safely edited.

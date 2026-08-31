@@ -552,6 +552,49 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     fun dismissAdviceError() =
         _state.update { it.copy(advice = it.advice.errorDismissed()) }
 
+    /**
+     * Reject one recommendation. Pure, and final for this review.
+     *
+     * No engine call, because a rejection is not an edit — it is the absence of
+     * one. The item does not come back on re-entering the screen.
+     */
+    fun rejectAdvice(item: QueuedAdvice) =
+        _state.update { it.copy(advice = it.advice.rejecting(item)) }
+
+    /**
+     * Accept one recommendation, staging it on the screen that owns it.
+     *
+     * Deliberately *not* an engine call either. Accepting stages; the edit is
+     * journaled when the person presses Apply on the domain screen, which is the
+     * same gate every hand-made edit passes. The pre-load itself happens in that
+     * screen's load path — see [EditorUiState.preloadingStagedAdvice].
+     */
+    fun acceptAdvice(item: QueuedAdvice) =
+        _state.update { it.copy(advice = it.advice.accepting(item)) }
+
+    fun dismissAdviceQueueNotice() =
+        _state.update { it.copy(advice = it.advice.queueNoticeDismissed()) }
+
+    /**
+     * Open the table an accepted recommendation is staged onto, if one is.
+     *
+     * The generic editor opens one table at a time and the catalog is what names
+     * them, so this is the Tables screen's own way of arriving at the right
+     * table — Show-me can only get a person to the screen. A no-op unless a
+     * staged item names a table in the loaded catalog that is not already open.
+     */
+    fun openStagedAdviceTable() {
+        val current = _state.value
+        val staged = current.advice.staged ?: return
+        if (staged.staging.editor != "table") return
+        if (current.tables.detail?.summary?.name == staged.table.name) return
+        if (current.tables.dirty || current.busy) return
+        val summary = current.tables.catalog.firstOrNull {
+            it.name == staged.table.name && it.space == staged.space
+        } ?: return
+        openTable(summary)
+    }
+
     // ------------------------------------------------------------------ boost
 
     /** Pure draft manipulation — no engine call, nothing committed. */
@@ -613,6 +656,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                             )
                         } else {
                             state.copy(boost = state.boost.withModel(BoostCurveModel.fromJson(payload)))
+                                .preloadingStagedAdvice()
                         }
                     }
                     is BridgeOutcome.Failed -> state.copy(
@@ -668,6 +712,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                         } else {
                             val (detail, leanMax, richMin) = parsed
                             state.copy(lambda = state.lambda.withDetail(detail, leanMax, richMin))
+                                .preloadingStagedAdvice()
                         }
                     }
                     is BridgeOutcome.Failed -> state.copy(
@@ -927,6 +972,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                 when (outcome) {
                     is BridgeOutcome.Ok ->
                         state.copy(limiters = state.limiters.withModel(LimitersModel.fromJson(outcome.result)))
+                            .preloadingStagedAdvice()
                     is BridgeOutcome.Failed -> state.copy(
                         limiters = state.limiters.copy(loading = false, unavailable = outcome.message),
                         error = if (outcome.code == "TUNE_ERROR") null else outcome.toUserFacing(),
@@ -1378,6 +1424,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                             state.copy(tables = state.tables.copy(loading = false, notice = "The engine returned no table."))
                         } else {
                             state.copy(tables = state.tables.withDetail(TableDetail.fromJson(payload)))
+                                .preloadingStagedAdvice()
                         }
                     }
                     is BridgeOutcome.Failed -> state.copy(

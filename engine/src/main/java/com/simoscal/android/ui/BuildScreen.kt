@@ -254,7 +254,7 @@ private fun AdviceTransport(
             )
             if (review.summary.isNotBlank()) Caption(review.summary)
             if (review.counts.queued > 0) {
-                Caption("The accepted items are ready for the one-at-a-time review queue.")
+                Caption("Open Review to decide on them, one at a time.")
             }
         }
     }

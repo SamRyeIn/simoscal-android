@@ -78,6 +78,14 @@ fun TablesScreen(viewModel: EditorViewModel) {
         if (state.sessionId != null && tables.catalog.isEmpty()) viewModel.loadCatalog()
     }
 
+    // Show-me can only get somebody to this screen; the generic editor opens one
+    // table at a time and the catalog is what names them, so arriving at the
+    // *right* table is this screen's own job. Keyed on the catalog too, because
+    // an accepted item usually beats the catalog load here by a frame.
+    LaunchedEffect(state.advice.staged, tables.catalog) {
+        viewModel.openStagedAdviceTable()
+    }
+
     val detail = tables.detail
     if (detail == null) {
         TableBrowser(
