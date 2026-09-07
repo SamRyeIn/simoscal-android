@@ -23,19 +23,20 @@ also continues in the `simoscal` repo).
 
 | Piece                                     | State                                                                                                  |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Parity payload (`simoscal_v0_parity.py`)  | Done, deterministic, verified on host                                                                      |
-| Host runner + golden                      | Done (`parity/run_host_parity.py`)                                                                         |
-| Engine decoupled from matplotlib/openpyxl | Done (see "Ordering note")                                                                                 |
-| Gradle/Chaquopy project                   | Builds (AGP 7.4.2 / Gradle 7.6.4 — see below)                                                              |
-| Arm64-emulator parity verdict             | **PASS** — digest match (2026-07-23)                                                                       |
-| Physical-arm64 parity verdict             | **PASS** — Galaxy Tab A9+, arm64-only APK (2026-08-16)                                                    |
-| x86_64 parity                             | **N/A — ABI dropped** (2026-08-16). Never proven, so no longer shipped                                    |
-| V7 Compose shell + the editing flow       | Built; host-verifiable half green (see V7)                                                                 |
-| V7 on-device legs (SAF, share, recovery)  | **Green** — full round trip and recovery on Galaxy Tab A9+ (2026-08-15); rotation and low-storage owed   |
-| V8 boost canvas + calibration editors     | Built; pure rules green (see V8)                                                                           |
-| V8 on-device legs (drag, screenshots)     | Parity pull done (2026-08-15); fingertip drag and screenshot checks owed                                  |
-| V10 Changes screen (session edit journal) | Built; host-verified (see V10). On-device look not yet checked                                             |
-| Tune with Claude U6 courier transport     | Built; 332 JVM tests and both permission gates green. Device round trip still owed                        |
+| Parity payload (`simoscal_v0_parity.py`)  | Done, deterministic, verified on host                                                                  |
+| Host runner + golden                      | Done (`parity/run_host_parity.py`)                                                                     |
+| Engine decoupled from matplotlib/openpyxl | Done (see "Ordering note")                                                                             |
+| Gradle/Chaquopy project                   | Builds (AGP 7.4.2 / Gradle 7.6.4 — see below)                                                          |
+| Arm64-emulator parity verdict             | **PASS** — digest match (2026-07-23)                                                                   |
+| Physical-arm64 parity verdict             | **PASS** — Galaxy Tab A9+, arm64-only APK (2026-08-16)                                                 |
+| x86_64 parity                             | **N/A — ABI dropped** (2026-08-16). Never proven, so no longer shipped                                 |
+| V7 Compose shell + the editing flow       | Built; host-verifiable half green (see V7)                                                             |
+| V7 on-device legs (SAF, share, recovery)  | **Green** — full round trip and recovery on Galaxy Tab A9+ (2026-08-15); rotation and low-storage owed |
+| V8 boost canvas + calibration editors     | Built; pure rules green (see V8)                                                                       |
+| V8 on-device legs (drag, screenshots)     | Parity pull done (2026-08-15); fingertip drag and screenshot checks owed                               |
+| V10 Changes screen (session edit journal) | Built; host-verified (see V10). On-device look not yet checked                                         |
+| Tune with Claude U6 courier transport     | Built; 332 JVM tests and both permission gates green. Device round trip still owed                     |
+| Plot editor (any table) + zoom/pan        | Built; 367 JVM tests green. Gesture legs owed on device — see the 2026-09-07 implementation note       |
 
 ## V7 — the Compose shell
 

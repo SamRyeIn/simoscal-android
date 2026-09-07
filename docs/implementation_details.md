@@ -485,6 +485,93 @@ plot with a real fingertip, and the boost-only parity pull on the real SC8S50 bi
 hand-reviewed against a desktop `simoscal` build of the same edit. The
 cross-runtime golden fixtures remain the next byte-critical unit.
 
+### 2026-09-07 — The plot editor for any table, and pinch-zoom that cannot edit
+
+Context: the generic table editor showed every calibration as a grid of numbers.
+A grid is the right surface for reading one cell and the wrong one for reading a
+*shape* — a boost setpoint's knee, a timing curve's rolloff — which is what most
+of these tables are. A plot editor was drafted alongside it (`TablePlot.kt`,
+`TablePlotEditor.kt`) with pinch-zoom and pan, and this entry finishes it.
+
+Decision and rationale:
+
+- **Vector tables plot.** The draft offered a plot only for `ndim == 2`, so 1-D
+  calibrations and every breakpoint axis — the tables a curve view helps *most* —
+  fell back to a row of numbers. `TablePlotModel.directions()` now reads the
+  draft's own shape rather than the summary's `ndim`, and returns the
+  orientations that have length: both for a grid, the long one for a vector, none
+  for a scalar. The draft is what gets plotted, so a shape the plot cannot index
+  has to fail this check whatever the engine called it.
+- **A vector keeps its real breakpoints whichever axis carried them.** The engine
+  files a 1-D table's axis under `x_axis` or `y_axis` depending on how the XDF
+  stored it. When the two dimensions differ in length only one axis can be as
+  long as the plotted one, so the match is unambiguous and the label is used. A
+  *square* table is ambiguous and is never crossed over: a real label on the
+  wrong axis reads as fact, and is worse than an honest "breakpoint index
+  (unavailable)".
+- **A pinch can no longer edit.** This is the safety-relevant half. The draft ran
+  three overlapping gesture detectors and gated the transform one behind a
+  Navigate toggle; in Edit mode a two-finger pinch fell through to
+  `detectDragGestures`, which follows its first pointer — so zooming in to *read*
+  a curve dragged a breakpoint and wrote a value. There is now one
+  `awaitEachGesture` loop, and the escalation is a small state machine,
+  `TablePlotTouch`: it holds the value the touch started on, and the moment a
+  second finger lands it writes that value back and stops editing. Idempotent, so
+  a third finger cannot re-issue an undo over a later edit.
+- **The model is not a gesture key.** `TablePlotModel` is rebuilt on every edit,
+  so keying `pointerInput` on it would have restarted the handler each time a
+  drag moved a point, re-grabbing a fresh breakpoint every frame. Keyed on
+  `model.xAxis` (a value class, stable across edits) and read through
+  `rememberUpdatedState`, so a gesture in flight keeps the values it started with
+  and the *next* gesture starts from current ones.
+- **`TablePlotFrame` holds the plot area.** The gutters were being re-derived in
+  four places from `size` and raw `dp` arithmetic; the renderer and the gesture
+  handler disagreeing about them is how a drag lands on a different breakpoint
+  than the marker it grabbed. One value class now, tested as the exact inverse of
+  the renderer's own y — the same reason `BoostPlot.kt` keeps its coordinate math
+  out of the `ui` package.
+- **Zoom and pan survive rotation**, via a `listSaver` on the viewport. A tablet
+  turned mid-edit that snapped back to the whole table would lose the window
+  someone had lined up on the breakpoints they were working.
+- **The imported bin is ghosted behind the working curve**, dashed, as the pedal
+  and boost curve editors already do; the view is fitted to bracket it so the
+  reference cannot start off frame. Absent when the engine sent no pre-edit
+  buffer (a recovered session), and the caption says so — that is "no ghost to
+  draw", never "unchanged".
+- Direction chips are hidden when only one orientation exists and the curve
+  legend when there is only one curve, so a vector table shows a curve rather
+  than a row of controls that do nothing.
+
+Safety/provenance impact: one path writes calibration and it is unchanged —
+`onCellTyped` → `withTypedCell`, the same validated, never-coerced transition the
+grid uses, so the axis-monotonicity and finite-value refusals apply to a drag
+exactly as to a typed value. The plot is a way of *composing* a proposal; Apply
+still sends one `paste` op and one journal entry. Nothing here touches the bridge
+or the bin. The new safety property is the negative one: a gesture that becomes a
+pinch leaves the calibration exactly as it found it.
+
+Files changed: new `TablePlot.kt` (model, range, frame, touch, viewport),
+`ui/TablePlotEditor.kt`, `TablePlotTest.kt`; modified `ui/TablesScreen.kt` (the
+Grid/Plot editor toggle), `AnalysisModel.kt` (evidence with nested arrays or
+objects is filtered out rather than dumped as raw JSON), this file, and the
+README status table.
+
+Verification: `:engine:testDebugUnitTest` **367 passed, 0 failed** (up from 358;
+`TablePlotTest` 10 → 19, covering vector orientations, the cross-axis label rule
+and its square-table refusal, scalars, the ghost's three states, the frame as the
+renderer's inverse, and the pinch-escalation undo). `:engine:assembleDebug`
+produces a 53.5 MB APK and `:engine:verifyDebugNoPermissions` passes.
+
+Remaining risks or follow-up: **every on-device leg is owed**, and none of it is
+claimed here — the gesture loop is the part JVM tests cannot reach. What needs a
+real fingertip on the Galaxy Tab A9+: a pinch begun as a one-finger drag leaving
+the value untouched (the property `TablePlotTouch` encodes, verified end to end);
+a drag not being stolen by the surrounding vertical scroll; one-finger pan in
+Navigate mode; a vector table rendering as a single curve with its real
+breakpoints; and the viewport surviving a rotation. Carrying forward V7's
+decision not to stand up a Compose test harness, there are still no screenshot
+tests.
+
 ### Future entry template
 
 ```markdown

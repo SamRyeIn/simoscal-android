@@ -53,6 +53,7 @@ import com.simoscal.android.TableAxis
 import com.simoscal.android.TableDetail
 import com.simoscal.android.TableGroup
 import com.simoscal.android.TableSummary
+import com.simoscal.android.TablePlotModel
 import com.simoscal.android.ValueFormat
 import com.simoscal.android.rampColor
 import kotlin.math.abs
@@ -254,6 +255,8 @@ private fun TableEditor(viewModel: EditorViewModel) {
     val tables = state.tables
     val detail = tables.detail ?: return
     val summary = detail.summary
+    var plotMode by rememberSaveable(summary.space, summary.name) { mutableStateOf(false) }
+    val plotAvailable = TablePlotModel.available(tables)
 
     var editingCell by remember { mutableStateOf<CellRef?>(null) }
     var batch by remember { mutableStateOf<BatchOperation?>(null) }
@@ -315,39 +318,68 @@ private fun TableEditor(viewModel: EditorViewModel) {
             )
         }
 
-        TableGrid(
-            values = tables.draft,
-            committed = tables.committed,
-            selection = tables.selection,
-            xAxis = detail.xAxis,
-            yAxis = detail.yAxis,
-            cellFormat = cellFormat,
-            editable = tables.writable,
-            heatmap = state.heatmap,
-            onCellLongPress = { cell -> viewModel.onCellToggled(cell) },
-            onCellTap = { cell -> if (tables.writable) editingCell = cell else Unit },
-        )
-
-        Caption(
-            buildString {
-                append("Tap a cell to type a value · long-press to select it for a batch operation. ")
-                if (state.heatmap) append("Fill shades low to high across this table; a ")
-                else append("A ")
-                append("selected cell is outlined in blue and a changed one in orange, ")
-                append("with its old value beneath. ")
-                append("${tables.selection.size} selected, ${tables.changedCells.size} changed.")
+        if (plotAvailable) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = !plotMode,
+                    onClick = { plotMode = false },
+                    label = { Text("Grid") },
+                    colors = promoFilterChipColors(),
+                )
+                FilterChip(
+                    selected = plotMode,
+                    onClick = { plotMode = true },
+                    label = { Text("Plot editor") },
+                    colors = promoFilterChipColors(),
+                )
             }
-        )
+        }
+
+        if (plotMode && plotAvailable) {
+            TablePlotEditor(
+                tables = tables,
+                enabled = tables.writable && !state.busy,
+                onEdit = viewModel::onCellTyped,
+                onTap = { editingCell = it },
+            )
+            Caption("${tables.changedCells.size} changed cells in this table.")
+        } else {
+            TableGrid(
+                values = tables.draft,
+                committed = tables.committed,
+                selection = tables.selection,
+                xAxis = detail.xAxis,
+                yAxis = detail.yAxis,
+                cellFormat = cellFormat,
+                editable = tables.writable,
+                heatmap = state.heatmap,
+                onCellLongPress = { cell -> viewModel.onCellToggled(cell) },
+                onCellTap = { cell -> if (tables.writable) editingCell = cell else Unit },
+            )
+
+            Caption(
+                buildString {
+                    append("Tap a cell to type a value · long-press to select it for a batch operation. ")
+                    if (state.heatmap) append("Fill shades low to high across this table; a ")
+                    else append("A ")
+                    append("selected cell is outlined in blue and a changed one in orange, ")
+                    append("with its old value beneath. ")
+                    append("${tables.selection.size} selected, ${tables.changedCells.size} changed.")
+                }
+            )
+        }
 
         if (tables.writable) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                PromoOutlinedButton(onClick = viewModel::onSelectAllCells) { Text("All") }
-                PromoOutlinedButton(onClick = viewModel::onClearSelection) { Text("None") }
-                PromoOutlinedButton(onClick = viewModel::onInterpolateSelection) { Text("Ramp") }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                BatchOperation.values().forEach { operation ->
-                    PromoOutlinedButton(onClick = { batch = operation }) { Text(operation.label) }
+            if (!plotMode || !plotAvailable) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    PromoOutlinedButton(onClick = viewModel::onSelectAllCells) { Text("All") }
+                    PromoOutlinedButton(onClick = viewModel::onClearSelection) { Text("None") }
+                    PromoOutlinedButton(onClick = viewModel::onInterpolateSelection) { Text("Ramp") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    BatchOperation.values().forEach { operation ->
+                        PromoOutlinedButton(onClick = { batch = operation }) { Text(operation.label) }
+                    }
                 }
             }
 
