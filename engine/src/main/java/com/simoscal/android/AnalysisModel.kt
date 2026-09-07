@@ -311,6 +311,7 @@ private fun JSONObject.toFinding(): Finding {
         message = optString("message", ""),
         evidence = evidence?.keys()?.asSequence()
             ?.sorted()
+            ?.filterNot { key -> evidence.opt(key).let { it is JSONArray || it is JSONObject } }
             ?.map { key -> key to evidence.opt(key).asDisplayText() }
             ?.toList()
             .orEmpty(),
@@ -321,9 +322,11 @@ private fun JSONObject.toFinding(): Finding {
 }
 
 /**
- * Evidence values arrive as numbers, strings, or booleans and are only ever
- * shown. Formatting stays here rather than in the composable so the same value
- * cannot render two ways in two places.
+ * Evidence values are only ever shown, so this only ever sees the scalars
+ * (numbers, strings, booleans) [toFinding] lets through — nested arrays/objects
+ * (e.g. a check's per-zone detail) are filtered out before reaching here, since
+ * dumping their raw JSON is not a display format. Formatting stays here rather
+ * than in the composable so the same value cannot render two ways in two places.
  */
 private fun Any?.asDisplayText(): String = when (this) {
     null, JSONObject.NULL -> "—"
