@@ -662,6 +662,18 @@ Verification:
   `R00.bin` with Checksums, Final-bin readback, Blocked writes, and switch-patch
   sanity all PASSED. Session recovery survived an `adb install -r` over the top.
 - Phone screenshots were retaken after the nav fix and show the icon-only bar.
+- **Later the same day, the whole flow was re-run on the real Galaxy Tab A9+**
+  (SM-X210, Android 16) over wireless adb, which is a stronger result than the
+  emulator gave on two counts: it is the target hardware, and it is a newer OS
+  than the emulator's 15. Same outcome — SAF import of the bin and both XDFs,
+  preflight pass, a boost edit applied to slot 1 with its reason recorded, and a
+  verified R00.bin with Checksums, Final-bin readback, Blocked writes and
+  switch-patch sanity all PASSED. The six tablet store frames were retaken from
+  that run and replace the emulator's.
+- Installing there proved the coexistence note above in the least abstract way:
+  the tablet now carries com.simoscal.engine, com.simoscal.engine.test *and*
+  com.simoscal.app, with two simoscal icons in the taskbar. The old package keeps
+  its own sessions and imports and is not upgraded by the new one.
 
 Remaining risks or follow-up:
 
@@ -671,6 +683,10 @@ Remaining risks or follow-up:
 - The nav fix has no test. There is still no Compose test harness in this project
   (V7's decision, unchanged), so the threshold is pinned by nothing but the
   screenshots that exercised it.
+- The device run drove the stepper and the +0.5 button over `adb shell input
+  tap`. That is not a finger, so the fingertip-drag leg the README has owed since
+  V8 is still owed, as are rotation mid-session, the share/export round trip, the
+  courier round trip, and the plot editor's gestures.
 - The 512 icon and the legacy mipmaps are a *recreation* of the hand-exported
   original, not a re-export of it. They are visibly the same mark; they are not
   pixel-identical to what shipped before.

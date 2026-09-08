@@ -41,10 +41,11 @@ drift apart. See "Play release" below.
 | V7 Compose shell + the editing flow       | Built; host-verifiable half green (see V7)                                                             |
 | V7 on-device legs (SAF, share, recovery)  | **Green** — full round trip and recovery on Galaxy Tab A9+ (2026-08-15); rotation and low-storage owed |
 | V8 boost canvas + calibration editors     | Built; pure rules green (see V8)                                                                       |
-| V8 on-device legs (drag, screenshots)     | Parity pull done (2026-08-15); fingertip drag and screenshot checks owed                               |
-| V10 Changes screen (session edit journal) | Built; host-verified (see V10). On-device look not yet checked                                         |
-| Tune with Claude U6 courier transport     | Built; 332 JVM tests and both permission gates green. Device round trip still owed                     |
+| V8 on-device legs (drag, screenshots)     | Parity pull (2026-08-15) and screenshot checks (2026-09-08) done; **fingertip drag still owed** — the 2026-09-08 run drove the stepper over adb, which is not a finger |
+| V10 Changes screen (session edit journal) | Built; host-verified (see V10). **On-device look checked** on a Galaxy Tab A9+, Android 16 (2026-09-08) |
+| Tune with Claude U6 courier transport     | Built; 367 JVM tests and both permission gates green. Device round trip still owed                     |
 | Plot editor (any table) + zoom/pan        | Built; 367 JVM tests green. Gesture legs owed on device — see the 2026-09-07 implementation note       |
+| Minified release build, end to end        | **Green** — Galaxy Tab A9+, Android 16 (2026-09-08): SAF import of bin + both XDFs, preflight pass, a boost edit applied to slot 1, verified build with every gate passing. The only run that can catch a missing Chaquopy R8 keep |
 | Play internal-testing readiness           | **Ready to upload** (2026-09-08) — signed AAB, store assets, listing copy; Console side is Sam's. See `store/` |
 
 ## V7 — the Compose shell
