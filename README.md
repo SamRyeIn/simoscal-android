@@ -19,6 +19,14 @@ brainstorm, the two plans, the implementation-details log, and a full copy of th
 `simoscal` code-review log as it stood at the split (the library half of that log
 also continues in the `simoscal` repo).
 
+`store/` holds everything the Play listing needs and the scripts that draw it:
+`RELEASE_CHECKLIST.md` is the entry point — every line is either done, with the
+command that proves it, or assigned with the steps. `SUBMISSION.md` walks the
+Console field by field, `listing.md` carries the copy (with a checker for Play's
+character limits), and the icon, feature graphic, and screenshots are *generated*
+rather than exported by hand, so the store icon and the launcher icon cannot
+drift apart. See "Play release" below.
+
 ## Status
 
 | Piece                                     | State                                                                                                  |
@@ -26,7 +34,7 @@ also continues in the `simoscal` repo).
 | Parity payload (`simoscal_v0_parity.py`)  | Done, deterministic, verified on host                                                                  |
 | Host runner + golden                      | Done (`parity/run_host_parity.py`)                                                                     |
 | Engine decoupled from matplotlib/openpyxl | Done (see "Ordering note")                                                                             |
-| Gradle/Chaquopy project                   | Builds (AGP 7.4.2 / Gradle 7.6.4 — see below)                                                          |
+| Gradle/Chaquopy project                   | Builds (AGP 8.1.4 / Gradle 8.4 — see below)                                                            |
 | Arm64-emulator parity verdict             | **PASS** — digest match (2026-07-23)                                                                   |
 | Physical-arm64 parity verdict             | **PASS** — Galaxy Tab A9+, arm64-only APK (2026-08-16)                                                 |
 | x86_64 parity                             | **N/A — ABI dropped** (2026-08-16). Never proven, so no longer shipped                                 |
@@ -37,6 +45,7 @@ also continues in the `simoscal` repo).
 | V10 Changes screen (session edit journal) | Built; host-verified (see V10). On-device look not yet checked                                         |
 | Tune with Claude U6 courier transport     | Built; 332 JVM tests and both permission gates green. Device round trip still owed                     |
 | Plot editor (any table) + zoom/pan        | Built; 367 JVM tests green. Gesture legs owed on device — see the 2026-09-07 implementation note       |
+| Play internal-testing readiness           | **Ready to upload** (2026-09-08) — signed AAB, store assets, listing copy; Console side is Sam's. See `store/` |
 
 ## V7 — the Compose shell
 
@@ -44,8 +53,9 @@ The app lives in **one module**, `:engine`, alongside the Chaquopy runtime. That
 is not tidiness lost: Chaquopy's Gradle plugin applies to the *application*
 module, so a separate `:app` would have to either carry its own Python runtime or
 demote `engine` to a library Chaquopy does not support. Keeping one module also
-leaves the V0 parity evidence (taken against `applicationId com.simoscal.engine`)
-describing the same artifact the UI ships in.
+leaves the V0 parity evidence (taken against `applicationId com.simoscal.engine`,
+the id at the time — renamed to `com.simoscal.app` on 2026-09-08 for the first
+Play upload) describing the same artifact the UI ships in.
 
 UI code is `com.simoscal.android`; the V0/V6 engine plumbing stays in
 `com.simoscal.engine`.
@@ -849,7 +859,7 @@ adb install -r -g engine/build/outputs/apk/debug/engine-debug.apk
 adb install -r -g engine/build/outputs/apk/androidTest/debug/engine-debug-androidTest.apk
 
 adb shell am instrument -w -e fixtureDir /data/local/tmp/v0 \
-  com.simoscal.engine.test/androidx.test.runner.AndroidJUnitRunner   # → OK (2 tests)
+  com.simoscal.app.test/androidx.test.runner.AndroidJUnitRunner   # → OK (2 tests)
 
 cd parity && ./push_fixtures_and_compare.sh compare
 ```
@@ -866,10 +876,10 @@ silently "match" a device run that skipped it — check the report has zero
 
 ### Play Protect blocks the test APK on a stock device
 
-**The first install of `com.simoscal.engine.test` will hang, not fail.** Google
+**The first install of `com.simoscal.app.test` will hang, not fail.** Google
 Play Protect refuses it with an on-device dialog:
 
-> **Unsafe app blocked** — `com.simoscal.engine.test`
+> **Unsafe app blocked** — `com.simoscal.app.test`
 > This app was built for an older version of Android and doesn't include the
 > latest privacy protections.
 
@@ -892,7 +902,7 @@ adb shell settings delete global verifier_verify_adb_installs  # restore afterwa
 ```
 
 Scoped to adb sideloads and nothing else. Only needed once per package: after
-`com.simoscal.engine.test` exists, rebuilds are updates and install normally, so
+`com.simoscal.app.test` exists, rebuilds are updates and install normally, so
 put the setting back. **The V0 gate was therefore not runnable on a stock
 consumer device without either this setting or a `targetSdk` bump** — worth
 knowing for a gate whose entire purpose is physical hardware. The bump has since
@@ -927,7 +937,7 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@17
 adb install -r engine/build/outputs/apk/release/engine-release.apk
 adb install -r engine/build/outputs/apk/androidTest/release/engine-release-androidTest.apk
 adb shell am instrument -w -r \
-  com.simoscal.engine.test/androidx.test.runner.AndroidJUnitRunner   # -> OK (2 tests)
+  com.simoscal.app.test/androidx.test.runner.AndroidJUnitRunner   # -> OK (2 tests)
 ```
 
 `connectedAndroidTest` reports `tests=0` here too — same flake as above, so drive
@@ -1044,8 +1054,8 @@ APK=engine/build/outputs/apk
 "$ADB" install -r -g "$APK/debug/engine-debug.apk"
 "$ADB" install -r -g "$APK/androidTest/debug/engine-debug-androidTest.apk"
 "$ADB" shell am instrument -w -e fixtureDir /data/local/tmp/v0 \
-  com.simoscal.engine.test/androidx.test.runner.AndroidJUnitRunner
-# → OK (1 test); report at /sdcard/Android/data/com.simoscal.engine/files/
+  com.simoscal.app.test/androidx.test.runner.AndroidJUnitRunner
+# → OK (1 test); report at /sdcard/Android/data/com.simoscal.app/files/
 ```
 
 Then `parity/push_fixtures_and_compare.sh compare` pulls the report and diffs it
@@ -1063,6 +1073,12 @@ worth reading before you use them.
 
 `keystore.properties` at the repo root (gitignored, alongside `*.jks` /
 `*.keystore`), or the equivalent environment variables:
+
+The upload key for this app already exists, outside the repo, at
+`~/Documents/simoscal-keys/simoscal-upload.jks` with its passwords in
+`keystore-credentials.txt` beside it — `keystore.properties` at the repo root
+already points at it, so a release build on this machine needs no arguments. To
+create one somewhere else:
 
 ```bash
 keytool -genkeypair -v -keystore ~/keys/simoscal-upload.jks \
@@ -1175,7 +1191,7 @@ unuploadable. Confirmed on the built artifact rather than in the build file:
 
 ```
 $ aapt dump badging engine/build/outputs/apk/release/engine-release.apk
-package: name='com.simoscal.engine' versionCode='1' versionName='0.1.0' ...
+package: name='com.simoscal.app' versionCode='1' versionName='0.1.0' ...
 sdkVersion:'26'
 targetSdkVersion:'35'
 native-code: 'arm64-v8a'
@@ -1185,9 +1201,59 @@ Check Play's current minimum before submitting — it rises annually, around
 August, and the value that mattered when this was written may not be the value
 that matters when you upload.
 
-What remains is not build work: a hosted privacy-policy URL, the Data safety
-form, content rating, and the store listing itself — see *Store-listing
-paperwork* above.
+What remains is not build work: the Data safety form, content rating, and the
+store listing itself — see *Store-listing paperwork* above and *Play release*
+below. The privacy-policy URL is no longer outstanding: it is live at
+https://samryein.github.io/simoscal-android/privacy-policy, built by GitHub Pages
+from `main` `/docs`.
+
+### Play release
+
+The app is prepared for a Play **internal testing** track — up to 100 testers by
+email, live minutes after upload, no content-review queue. `store/RELEASE_CHECKLIST.md`
+is the working document: every line is either done with the command that proves
+it, or assigned with the steps. What is done here:
+
+- `applicationId` is **`com.simoscal.app`**, renamed from `com.simoscal.engine` on
+  2026-09-08. Play binds a listing to an application id permanently at first
+  upload, so this was the last moment it was free to change. The Kotlin/R
+  namespace stays `com.simoscal.engine` — it names the source, not the app.
+- A signed AAB and APK, verified against the keystore rather than trusted because
+  the build exited 0:
+
+  ```bash
+  apksigner verify --print-certs engine/build/outputs/apk/release/engine-release.apk
+  jarsigner -verify engine/build/outputs/bundle/release/engine-release.aab
+  keytool -list -v -keystore ~/Documents/simoscal-keys/simoscal-upload.jks \
+    -alias simoscal-upload      # the SHA-256 must match the APK's signer
+  ```
+
+- Store graphics that are *drawn*, not exported: `store/make_store_graphics.py`
+  renders the 512×512 Play icon, the feature graphic, the five legacy mipmap
+  densities and the adaptive icon's foreground from one `draw_artwork()`
+  function, in the `PromoPalette` colours. `--mipmaps` is the flag that touches
+  the committed resources.
+
+  ```bash
+  python3 store/make_store_graphics.py --mipmaps
+  python3 store/make_screenshots.py     # frames store/captures/ for the listing
+  python3 store/check_listing.py        # measures the copy against Play's limits
+  ```
+
+- Screenshots taken off the **minified release build** running on an arm64
+  emulator, driven end to end through import, preflight, a boost edit and a
+  verified build. That run doubles as the check the README asks for elsewhere:
+  it is the only way to catch a missing Chaquopy R8 keep, which fails at runtime
+  while the build stays green.
+
+Not done, and not doable from here: the Play Console account does not exist yet,
+so §2–§6 of `store/SUBMISSION.md` describe forms nobody has filled in. Data
+safety answers live in `docs/play-data-safety.md`, with the evidence for each.
+
+One thing to decide before uploading: the screenshots are frames of a real
+session against `Patched_259L_R24.bin`, so they show this car's real boost
+targets. `store/captures/` and `store/graphics/screenshots/` are gitignored for
+that reason — publishing them is a deliberate act, not a `git add -A`.
 
 ## Environment / toolchain
 

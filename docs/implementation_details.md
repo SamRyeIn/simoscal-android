@@ -572,6 +572,109 @@ breakpoints; and the viewport surviving a rotation. Carrying forward V7's
 decision not to stand up a Compose test harness, there are still no screenshot
 tests.
 
+### 2026-09-08 — Ready the app for a Play internal-testing release
+
+Context:
+
+The app has had a full Compose UI since V7 and a shipped-quality build since V10,
+but had never been prepared for distribution. Nothing was blocking it technically
+— `bundleRelease` already worked and refused to emit an unsigned artifact — but
+there was no upload key, no store assets, no listing copy, and the `applicationId`
+was still the V0 module name. That last one has a deadline attached: Play binds a
+listing to an application id at first upload and never lets it change, so the
+rename had to happen before an upload, not after.
+
+Decision and rationale:
+
+- **`applicationId` renamed `com.simoscal.engine` → `com.simoscal.app`.** "engine"
+  described the tree when it held nothing but the Chaquopy runtime; it is a poor
+  permanent public identity for an app that is now a calibration editor. The
+  **namespace stays `com.simoscal.engine`**: it names the source, AGP has allowed
+  the two to differ since 7.0, and moving it would rewrite every `package` line
+  and every `import com.simoscal.engine.R` for no user-visible gain. This
+  supersedes the 2026-08-20 note in this file's header, which recorded that the
+  `applicationId` deliberately did not change at the Quick Edit rename — true
+  then, and true right up until the app acquired a reason to care what its public
+  name is.
+- **Store icon and launcher icon are now one drawing.** `store/make_store_graphics.py`
+  holds the artwork as a single `draw_artwork()` function; the 512×512 Play icon,
+  the five legacy mipmap densities, and the adaptive icon's foreground are all
+  rendered from it. Previously the launcher PNGs were hand-exported with no
+  source, so a 512 store icon would have been a lookalike rather than the same
+  mark. The palette is transcribed from `PromoPalette`, like `colors.xml` and the
+  promo video's own config.
+- **An adaptive icon exists at last.** Before this the app shipped only square
+  legacy PNGs, so every launcher on API 26+ — which is every device, `minSdk` is
+  26 — drew the mark shrunk on a generated pale badge. The foreground is inset to
+  the 66/108 guaranteed-visible square over `@color/promo_bg`. **No monochrome
+  layer**: a themed-icon launcher tints that layer flat, and this artwork does not
+  reduce to a silhouette.
+- **The bottom navigation drops its labels on narrow screens.** Ten destinations
+  on a 411 dp phone gave each item ~41 dp, and "Limiters" and "Changes" wrapped
+  mid-word — "Cha / nge / s". Below `items.size * 72` dp the bar is icons only.
+  Nothing is lost: every screen already announces itself in its own header, and
+  the label stays on the icon's `contentDescription`, so TalkBack is unchanged.
+  This was found by taking the phone screenshots the store listing requires, which
+  is the first time anyone had looked hard at this app on a phone.
+
+Safety/provenance impact:
+
+None to the engine, the gates, or the bin math — no Python changed and no gate
+moved. The provenance note that V0 parity was measured against
+`applicationId com.simoscal.engine` stays true and is now marked in the README as
+naming the id of the time.
+
+The store assets are frames of a real session against `Patched_259L_R24.bin`, so
+they show this car's real boost targets and a real journalled edit. That is
+already public in the `gti-tune` repository, but a store listing is a wider
+audience, so `store/captures/` and `store/graphics/screenshots/` are gitignored
+and the decision to publish them is left explicit rather than made by a
+`git add -A`. The keystore lives outside the repo and `keystore.properties` was
+already ignored.
+
+Files changed:
+
+- `engine/build.gradle.kts` — `applicationId`; the stale "compileSdk 33 pairs with
+  AGP 7.4.2" comment corrected to what the code beneath it actually says.
+- `engine/src/main/java/com/simoscal/android/ui/SimoscalApp.kt` — width-dependent
+  nav labels.
+- `engine/src/main/res/mipmap-*/` — regenerated icons, new adaptive icon.
+- `store/` — new: `make_store_graphics.py`, `make_screenshots.py`,
+  `check_listing.py`, `listing.md`, `SUBMISSION.md`, `RELEASE_CHECKLIST.md`,
+  `captures/`, `graphics/`.
+- `README.md`, `docs/play-data-safety.md`, `parity/push_fixtures_and_compare.sh`,
+  three unit-test fixture path strings — application id references.
+
+Verification:
+
+- `./gradlew :engine:check :engine:assembleRelease :engine:bundleRelease` green:
+  367 debug + 367 release unit tests, 0 failures; both permission gates clean on
+  the release variant.
+- `aapt2 dump badging` on the release APK: `com.simoscal.app`, versionCode 1,
+  targetSdk 35, `arm64-v8a` only, one signature-level self-defined permission.
+- `apksigner verify --print-certs` on the APK gives SHA-256 `8c53a7a6…1acc`,
+  matching `keytool -list -v` on the keystore; `jarsigner -verify` on the AAB says
+  `jar verified`.
+- **The minified release build was driven end to end on an arm64 emulator**, which
+  is the leg that catches a missing R8 keep: bin + XDF + switch-patch XDF imported
+  through SAF, preflight passed ("recognised SC8S50 bin with valid checksums"),
+  a boost breakpoint edited and applied to slot 1, and Build produced a verified
+  `R00.bin` with Checksums, Final-bin readback, Blocked writes, and switch-patch
+  sanity all PASSED. Session recovery survived an `adb install -r` over the top.
+- Phone screenshots were retaken after the nav fix and show the icon-only bar.
+
+Remaining risks or follow-up:
+
+- Nothing here has been near a Play Console. The account does not exist yet, so
+  every Console-side claim in `store/SUBMISSION.md` is drawn from Play's published
+  requirements rather than from having filled the forms in.
+- The nav fix has no test. There is still no Compose test harness in this project
+  (V7's decision, unchanged), so the threshold is pinned by nothing but the
+  screenshots that exercised it.
+- The 512 icon and the legacy mipmaps are a *recreation* of the hand-exported
+  original, not a re-export of it. They are visibly the same mark; they are not
+  pixel-identical to what shipped before.
+
 ### Future entry template
 
 ```markdown
