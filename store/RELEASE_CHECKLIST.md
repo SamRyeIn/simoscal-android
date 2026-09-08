@@ -54,7 +54,7 @@ cd ~/simoscal-android
 
 | # | Item | Owner | Evidence / steps |
 | - | ---- | ----- | ---------------- |
-| 19 | Play Console developer account | **SAM** | play.google.com/console, $25 one-time, identity verification. Allow 1–3 days. Nothing below can start until this clears |
+| 19 | Play Console developer account | **DONE** | Sam confirmed the account exists, 2026-09-08. Everything below is now unblocked |
 | 20 | Create the app | **SAM** | `store/SUBMISSION.md` §1 |
 | 21 | App content declarations | **SAM** | `store/SUBMISSION.md` §2 — every question with its answer |
 | 22 | Content rating questionnaire | **SAM** | `store/SUBMISSION.md` §3. Expect Everyone / PEGI 3 |
