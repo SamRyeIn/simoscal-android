@@ -30,12 +30,9 @@ parity/fixtures/
 
 # Store screenshots are frames of a real session, so they show a real car's
 # calibration — the boost panels are this car's target curves and the Changes
-# panel names a real edit. That is already public in the gti-tune repository,
-# but a store listing is a wider audience than a repository, so the frames stay
-# out of this public repo until that is a deliberate decision rather than a
-# side effect of `git add -A`. Regenerate them with:
-#   python3 store/make_screenshots.py     (from store/captures/)
-# The icon and feature graphic are NOT ignored: they are drawn from the palette
-# and contain no calibration data.
-store/captures/
-store/graphics/screenshots/
+# panel names a real edit. They were held out of this public repo until that was
+# a deliberate decision rather than a side effect of `git add -A`; the decision
+# was made on 2026-09-08 (RELEASE_CHECKLIST item 33) and they are now tracked,
+# because a live Play listing publishes them anyway and having them here keeps
+# them versioned alongside the scripts that compose them:
+#   python3 store/make_screenshots.py     (store/captures/ -> store/graphics/screenshots/)

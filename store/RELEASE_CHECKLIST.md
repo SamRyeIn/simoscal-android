@@ -47,7 +47,7 @@ cd ~/simoscal-android
 | 14 | 1024×500 feature graphic | **DONE** | `store/graphics/play-feature-graphic-1024x500.png`, 23 KB |
 | 15 | ≥2 phone screenshots, 9:16 | **DONE** | 4 at 1080×1920 in `store/graphics/screenshots/phone-0*.png`, all under 300 KB |
 | 16 | Tablet screenshots, 16:9 | **DONE** | 6 at 1920×1080 in `store/graphics/screenshots/tablet-0*.png`. Serve both the 7-inch and 10-inch slots |
-| 17 | Screenshots come from the real app | **DONE** | `store/captures/` holds the raw `adb exec-out screencap` frames off the running minified release build; `store/make_screenshots.py` only crops the status bar and frames them |
+| 17 | Screenshots come from the real app | **DONE** | `store/captures/` holds raw `adb exec-out screencap` frames off the running minified release build. The six tablet frames are from **the real Galaxy Tab A9+ on Android 16** over wireless adb — import, preflight, a boost edit with its typed reason, the journal, and a verified build, all on target hardware. The four phone frames are from an arm64 emulator, there being no phone to hand. `store/make_screenshots.py` only crops system chrome and frames them |
 | 18 | Listing copy within Play's limits | **DONE** | `python3 store/check_listing.py` → name 8/30, short 72/80, full 2725/4000, release notes 407/500 |
 
 ## Console work
@@ -73,6 +73,6 @@ cd ~/simoscal-android
 
 | # | Item | Owner | Notes |
 | - | ---- | ----- | ----- |
-| 33 | The screenshots show a real tune | **SAM** | The captures were taken against `Patched_259L_R24.bin`, so the boost panels show this car's actual target curves, and the Changes and Build panels name a real table and a real edit. That data is already public in the `gti-tune` repository, so this changes nothing — but a store listing is a wider audience than a repository, and it is your call. To swap to the stock bin instead, recapture with `Code/bin/5G0906259L__0002.bin`; the Boost and Slots screens are unreachable without a switch-patched bin, so the hero shot would be lost |
+| 33 | The screenshots show a real tune | **DONE** | Decided 2026-09-08: ship them. The boost panels show this car's five slot curves, the Changes panel names `0x7d41a` and its before/after hPa, and the import panel shows the bin filename and hash — no VIN, name, or location. The same numbers are already public in `gti-tune`, so this widens the audience rather than making a new disclosure, and a listing that shows a real calibration being edited argues for the app better than an empty import screen. Now committed rather than gitignored: once the listing is live, keeping them out of the repo protects nothing |
 | 34 | Production is at least two weeks out | **SAM** | A personal developer account has to run a closed test with 12 testers for 14 days before production. Internal testing is not gated by it, but the clock only starts when the closed test does — worth starting early if production is the goal |
 | 35 | `Docs/` name collision | **SAM** | Nothing to do now. Noted because `docs/` is both the design record and the GitHub Pages source; a stray `.md` added there becomes a public web page unless `docs/_config.yml`'s `exclude:` list grows with it |

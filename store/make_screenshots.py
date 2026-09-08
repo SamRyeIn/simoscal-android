@@ -8,7 +8,9 @@ each capture is placed whole on a canvas of the required ratio, on the app's own
 ground, under a caption saying what is being looked at.
 
 The captures in `store/captures/` come off a running build — the *minified
-release* variant, on an emulator matching the target device — not from a mockup.
+release* variant — not from a mockup. The tablet frames are from the real
+Galaxy Tab A9+ this app is built for, over wireless adb, on Android 16; the
+phone frames are from an arm64 emulator, there being no phone to hand.
 Recapture with:
 
     adb exec-out screencap -p > store/captures/<name>.png
@@ -41,9 +43,13 @@ PHONE_CANVAS = (1080, 1920)
 TABLET_CANVAS = (1920, 1080)
 
 # System chrome to cut off each capture, in source pixels: the status bar at the
-# top, the gesture pill at the bottom.
+# top, the navigation chrome at the bottom. The two differ because the captures
+# come from different places — the phone frames from an emulator with a gesture
+# pill, the tablet frames from a real Galaxy Tab A9+ whose One UI taskbar is
+# taller and floats over the app. The tablet's bottom crop clears that taskbar
+# while leaving the app's own navigation bar, which sits above it, intact.
 PHONE_CHROME = (96, 60)
-TABLET_CHROME = (40, 34)
+TABLET_CHROME = (56, 78)
 
 # (capture file, caption). The order is the order Play shows them, so the first
 # one has to carry the product on its own.
