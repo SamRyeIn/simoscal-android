@@ -51,7 +51,9 @@ import com.simoscal.android.formatSigned
 import com.simoscal.android.EditorViewModel
 import com.simoscal.android.TableAxis
 import com.simoscal.android.TableDetail
+import com.simoscal.android.TableGroup
 import com.simoscal.android.TableSummary
+import com.simoscal.android.TablePlotModel
 import com.simoscal.android.ValueFormat
 import com.simoscal.android.rampColor
 import kotlin.math.abs
@@ -77,15 +79,25 @@ fun TablesScreen(viewModel: EditorViewModel) {
         if (state.sessionId != null && tables.catalog.isEmpty()) viewModel.loadCatalog()
     }
 
+    // Show-me can only get somebody to this screen; the generic editor opens one
+    // table at a time and the catalog is what names them, so arriving at the
+    // *right* table is this screen's own job. Keyed on the catalog too, because
+    // an accepted item usually beats the catalog load here by a frame.
+    LaunchedEffect(state.advice.staged, tables.catalog) {
+        viewModel.openStagedAdviceTable()
+    }
+
     val detail = tables.detail
     if (detail == null) {
         TableBrowser(
             query = tables.query,
             loading = tables.loading,
-            summaries = tables.visibleCatalog,
+            groups = tables.groups,
+            total = tables.catalog.size,
             binName = state.bin?.displayName,
             shortHash = state.bin?.shortHash,
             onQueryChanged = viewModel::onTableQueryChanged,
+            onGroupToggled = viewModel::onTableGroupToggled,
             onOpen = viewModel::openTable,
         )
         return
@@ -94,14 +106,30 @@ fun TablesScreen(viewModel: EditorViewModel) {
     TableEditor(viewModel = viewModel)
 }
 
+/**
+ * The catalog under its domain headings, every section collapsed until asked for.
+ *
+ * A flat list of the whole map is a list nobody reads: the tables that belong to
+ * one decision — the setpoint grid, its two axes, the ceilings that cap it — are
+ * scattered through it in profile-declaration order, and finding them means
+ * already knowing their names. Grouping is how someone who knows they want to
+ * change boost finds the thirteen tables that do it.
+ *
+ * Collapsed is the resting state so the headings fit one screen and the shape of
+ * the calibration is the first thing visible. Searching overrides that (see
+ * [com.simoscal.android.TablesUiState.groups]) — a query whose matches stayed
+ * hidden behind closed headings would read as no matches at all.
+ */
 @Composable
 private fun TableBrowser(
     query: String,
     loading: Boolean,
-    summaries: List<TableSummary>,
+    groups: List<TableGroup>,
+    total: Int,
     binName: String?,
     shortHash: String?,
     onQueryChanged: (String) -> Unit,
+    onGroupToggled: (String) -> Unit,
     onOpen: (TableSummary) -> Unit,
 ) {
     Column(
@@ -122,34 +150,101 @@ private fun TableBrowser(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        if (loading && summaries.isEmpty()) {
+        if (loading && groups.isEmpty()) {
             Caption("Reading the table catalog…")
+        } else if (groups.isEmpty() && total > 0) {
+            // Never silently empty: a search that matched nothing has to say so,
+            // or it reads as a catalog that failed to load.
+            Caption("No table matches “$query” — $total in the catalog.")
         }
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(summaries, key = { "${it.space}/${it.name}" }) { summary ->
-                Panel(padding = 12.dp, spacing = 2.dp, onClick = { onOpen(summary) }) {
-                    // ID and description, always both: an ID alone means nothing
-                    // in a change list, and a description alone does not say which
-                    // of several similar tables was touched. Set the way the video
-                    // sets them — monospace ID over the description in prose.
-                    TableIdentity(id = summary.id, describedAs = summary.describedAs)
-                    // What the table is, in units: the line that separates
-                    // two similarly-named maps before one is opened.
-                    Caption(summary.signature.ifBlank { summary.unitsText })
-                    Text(
-                        buildString {
-                            append("${summary.rows}×${summary.cols}")
-                            if (summary.space != "base") append(" · ${summary.space}")
-                            if (summary.isAxis) append(" · axis")
-                            if (!summary.reversible) append(" · read-only")
-                        },
-                        style = PromoType.figureSmall,
-                        color = PromoPalette.TextFaint,
+            groups.forEach { group ->
+                item(key = "group/${group.name}") {
+                    GroupHeader(
+                        name = group.name,
+                        count = group.tables.size,
+                        expanded = group.expanded,
+                        onClick = { onGroupToggled(group.name) },
                     )
+                }
+                if (group.expanded) {
+                    items(group.tables, key = { "${it.space}/${it.name}" }) { summary ->
+                        TableRow(summary = summary, onOpen = onOpen)
+                    }
                 }
             }
         }
+    }
+}
+
+/**
+ * One domain heading: its name, how many tables it holds, and which way it faces.
+ *
+ * The count is what makes a collapsed section informative — "Boost 13" says the
+ * map holds thirteen boost tables without opening anything.
+ */
+@Composable
+private fun GroupHeader(
+    name: String,
+    count: Int,
+    expanded: Boolean,
+    onClick: () -> Unit,
+) {
+    Panel(
+        padding = 12.dp,
+        spacing = 0.dp,
+        tone = if (expanded) PanelTone.Accent else PanelTone.Neutral,
+        onClick = onClick,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // A caret rather than an icon: the one glyph that says "this opens
+            // downward" without needing a legend.
+            Text(
+                if (expanded) "▾" else "▸",
+                style = PromoType.figureSmall,
+                color = if (expanded) PromoPalette.Accent else PromoPalette.TextDim,
+            )
+            Text(
+                name,
+                style = MaterialTheme.typography.titleSmall,
+                color = if (expanded) PromoPalette.Accent else PromoPalette.Text,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                "$count",
+                style = PromoType.figureSmall,
+                color = PromoPalette.TextDim,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TableRow(summary: TableSummary, onOpen: (TableSummary) -> Unit) {
+    Panel(padding = 12.dp, spacing = 2.dp, onClick = { onOpen(summary) }) {
+        // ID and description, always both: an ID alone means nothing
+        // in a change list, and a description alone does not say which
+        // of several similar tables was touched. Set the way the video
+        // sets them — monospace ID over the description in prose.
+        TableIdentity(id = summary.id, describedAs = summary.describedAs)
+        // What the table is, in units: the line that separates
+        // two similarly-named maps before one is opened.
+        Caption(summary.signature.ifBlank { summary.unitsText })
+        Text(
+            buildString {
+                append("${summary.rows}×${summary.cols}")
+                if (summary.space != "base") append(" · ${summary.space}")
+                if (summary.isAxis) append(" · axis")
+                if (!summary.reversible) append(" · read-only")
+            },
+            style = PromoType.figureSmall,
+            color = PromoPalette.TextFaint,
+        )
     }
 }
 
@@ -160,6 +255,8 @@ private fun TableEditor(viewModel: EditorViewModel) {
     val tables = state.tables
     val detail = tables.detail ?: return
     val summary = detail.summary
+    var plotMode by rememberSaveable(summary.space, summary.name) { mutableStateOf(false) }
+    val plotAvailable = TablePlotModel.available(tables)
 
     var editingCell by remember { mutableStateOf<CellRef?>(null) }
     var batch by remember { mutableStateOf<BatchOperation?>(null) }
@@ -221,39 +318,68 @@ private fun TableEditor(viewModel: EditorViewModel) {
             )
         }
 
-        TableGrid(
-            values = tables.draft,
-            committed = tables.committed,
-            selection = tables.selection,
-            xAxis = detail.xAxis,
-            yAxis = detail.yAxis,
-            cellFormat = cellFormat,
-            editable = tables.writable,
-            heatmap = state.heatmap,
-            onCellLongPress = { cell -> viewModel.onCellToggled(cell) },
-            onCellTap = { cell -> if (tables.writable) editingCell = cell else Unit },
-        )
-
-        Caption(
-            buildString {
-                append("Tap a cell to type a value · long-press to select it for a batch operation. ")
-                if (state.heatmap) append("Fill shades low to high across this table; a ")
-                else append("A ")
-                append("selected cell is outlined in blue and a changed one in orange, ")
-                append("with its old value beneath. ")
-                append("${tables.selection.size} selected, ${tables.changedCells.size} changed.")
+        if (plotAvailable) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = !plotMode,
+                    onClick = { plotMode = false },
+                    label = { Text("Grid") },
+                    colors = promoFilterChipColors(),
+                )
+                FilterChip(
+                    selected = plotMode,
+                    onClick = { plotMode = true },
+                    label = { Text("Plot editor") },
+                    colors = promoFilterChipColors(),
+                )
             }
-        )
+        }
+
+        if (plotMode && plotAvailable) {
+            TablePlotEditor(
+                tables = tables,
+                enabled = tables.writable && !state.busy,
+                onEdit = viewModel::onCellTyped,
+                onTap = { editingCell = it },
+            )
+            Caption("${tables.changedCells.size} changed cells in this table.")
+        } else {
+            TableGrid(
+                values = tables.draft,
+                committed = tables.committed,
+                selection = tables.selection,
+                xAxis = detail.xAxis,
+                yAxis = detail.yAxis,
+                cellFormat = cellFormat,
+                editable = tables.writable,
+                heatmap = state.heatmap,
+                onCellLongPress = { cell -> viewModel.onCellToggled(cell) },
+                onCellTap = { cell -> if (tables.writable) editingCell = cell else Unit },
+            )
+
+            Caption(
+                buildString {
+                    append("Tap a cell to type a value · long-press to select it for a batch operation. ")
+                    if (state.heatmap) append("Fill shades low to high across this table; a ")
+                    else append("A ")
+                    append("selected cell is outlined in blue and a changed one in orange, ")
+                    append("with its old value beneath. ")
+                    append("${tables.selection.size} selected, ${tables.changedCells.size} changed.")
+                }
+            )
+        }
 
         if (tables.writable) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                PromoOutlinedButton(onClick = viewModel::onSelectAllCells) { Text("All") }
-                PromoOutlinedButton(onClick = viewModel::onClearSelection) { Text("None") }
-                PromoOutlinedButton(onClick = viewModel::onInterpolateSelection) { Text("Ramp") }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                BatchOperation.values().forEach { operation ->
-                    PromoOutlinedButton(onClick = { batch = operation }) { Text(operation.label) }
+            if (!plotMode || !plotAvailable) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    PromoOutlinedButton(onClick = viewModel::onSelectAllCells) { Text("All") }
+                    PromoOutlinedButton(onClick = viewModel::onClearSelection) { Text("None") }
+                    PromoOutlinedButton(onClick = viewModel::onInterpolateSelection) { Text("Ramp") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    BatchOperation.values().forEach { operation ->
+                        PromoOutlinedButton(onClick = { batch = operation }) { Text(operation.label) }
+                    }
                 }
             }
 

@@ -9,7 +9,8 @@
 
   Files are read through the Storage Access Framework, which grants access to
   exactly the file the person picked and needs no storage permission, and the
-  built bin leaves through a FileProvider grant on the share sheet.
+  built bins and generated context bundles leave through per-file FileProvider
+  grants on the share sheet.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -43,9 +44,10 @@
         </activity>
 
         <!--
-          Grants read access to a single built bin, per share, for the app the
-          person picks. Nothing is world-readable and nothing is exported: the
-          staged bin lives in app-private storage until it is deliberately shared.
+          Grants read access to one staged export, per share, for the app the
+          person picks. Nothing is world-readable and nothing is exported: built
+          bins and generated context bundles stay app-private until deliberately
+          shared, while imported source files are outside this provider's root.
         -->
         <provider
             android:name="androidx.core.content.FileProvider"

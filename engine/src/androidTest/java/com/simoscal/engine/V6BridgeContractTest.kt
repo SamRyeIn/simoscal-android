@@ -18,5 +18,7 @@ class V6BridgeContractTest {
         val json = (result as SimoscalBridge.Result.Response).json
         assertTrue(json.contains(""""ok":true"""))
         assertTrue(json.contains(""""bridge_version":1"""))
+        assertTrue(json.contains(""""advice_bundle"""))
+        assertTrue(json.contains(""""advice_review"""))
     }
 }

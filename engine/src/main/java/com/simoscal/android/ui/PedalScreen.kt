@@ -1,6 +1,7 @@
 package com.simoscal.android.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -25,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -34,17 +36,25 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.simoscal.android.EditorViewModel
+import com.simoscal.android.PEDAL_NUDGE_STEPS
 import com.simoscal.android.PedalUiState
 import com.simoscal.android.display
+import com.simoscal.android.displayExact
 import kotlin.math.abs
+
+/** The pedal plot gets the same portrait emphasis as the boost plot. */
+private val PedalPlotHeight = 360.dp
 
 /**
  * The pedal-feel editor: how far the pedal goes before the engine does.
@@ -77,6 +87,11 @@ fun PedalScreen(viewModel: EditorViewModel) {
     var editing by remember { mutableStateOf<Int?>(null) }
     var intent by rememberSaveable { mutableStateOf("") }
 
+    val selectAndType: (Int) -> Unit = { index ->
+        viewModel.onPedalPointSelected(index)
+        editing = index
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -84,7 +99,9 @@ fun PedalScreen(viewModel: EditorViewModel) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        ScreenHeader(kicker = "How far before it goes", title = "Pedal feel")
+        ScreenHeader(kicker = "Every rpm, one pedal map", title = "Pedal feel")
+
+        SessionProvenanceCard(binName = state.bin?.displayName, shortHash = state.bin?.shortHash)
 
         Panel {
             PanelTitle("Which map")
@@ -104,6 +121,7 @@ fun PedalScreen(viewModel: EditorViewModel) {
                         selected = summary.name == pedal.detail?.summary?.name,
                         onClick = { viewModel.openPedalMap(summary) },
                         label = { Text(pedalMapLabel(summary.name)) },
+                        colors = promoFilterChipColors(),
                     )
                 }
             }
@@ -116,7 +134,7 @@ fun PedalScreen(viewModel: EditorViewModel) {
             detail == null -> Panel {
                 PanelTitle("No map open")
                 Text(
-                    "Choose one above to shape its pedal curve.",
+                    "Choose one above to shape its pedal curves.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = PromoPalette.TextDim,
                 )
@@ -136,51 +154,41 @@ fun PedalScreen(viewModel: EditorViewModel) {
                     )
                 }
 
+                RpmCurveChips(pedal = pedal, onSelect = viewModel::onPedalColumnSelected)
+
                 Panel(tone = if (pedal.dirty) PanelTone.Accent else PanelTone.Neutral) {
                     PanelTitle(
-                        "Pedal curve at ${pedal.columnRpm?.display("%.0f") ?: "—"} rpm",
+                        "Editing ${pedal.columnRpm?.display("%.0f") ?: "—"} rpm",
                         tone = if (pedal.dirty) PanelTone.Accent else PanelTone.Neutral,
                     )
 
                     PedalCanvas(
                         pedal = pedal,
-                        modifier = Modifier.fillMaxWidth().height(240.dp),
+                        modifier = Modifier.fillMaxWidth().height(PedalPlotHeight),
                         onDragPoint = viewModel::onPedalPointDragged,
-                        onTapPoint = { editing = it },
+                        onTapPoint = selectAndType,
                     )
 
                     Text(
                         if (pedal.ghost.isEmpty()) {
-                            "Dragging a point moves exactly one cell of the map."
+                            "All rpm curves are shown. The thicker curve is active; drag one " +
+                                "of its points or tap it to type an exact value."
                         } else {
-                            "The faint line is the bin as it was imported. Dragging a " +
-                                "point moves exactly one cell of the map."
+                            "All rpm curves are shown. The thicker curve is active; its dashed " +
+                                "line is the imported bin."
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = PromoPalette.TextFaint,
                     )
                 }
 
-                Panel {
-                    PanelTitle("Engine speed")
-                    Text(
-                        "Each column is the pedal curve at one engine speed.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = PromoPalette.TextDim,
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    ) {
-                        pedal.rpmAxis.forEachIndexed { index, rpm ->
-                            FilterChip(
-                                selected = index == pedal.column,
-                                onClick = { viewModel.onPedalColumnSelected(index) },
-                                label = { Text(rpm.display("%.0f")) },
-                            )
-                        }
-                    }
-                }
+                PedalBreakpointStepper(
+                    pedal = pedal,
+                    onStepSelection = viewModel::onPedalSelectionStepped,
+                    onSelectIncrement = viewModel::onPedalNudgeStepChanged,
+                    onNudge = viewModel::onPedalNudged,
+                    onType = { editing = pedal.selectedIndex },
+                )
 
                 pedal.notice?.let { NoticeCard(title = "Not applied", body = it, emphasise = true) }
                 pedal.lastApplied?.let { NoticeCard(title = "Applied", body = it) }
@@ -193,30 +201,14 @@ fun PedalScreen(viewModel: EditorViewModel) {
                     )
                 }
 
-                OutlinedTextField(
-                    value = intent,
-                    onValueChange = { intent = it },
-                    label = { Text("Why this change") },
-                    singleLine = true,
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth(),
-                )
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PromoButton(
-                        onClick = {
-                            viewModel.applyPedalDraft(
-                                intent.ifBlank {
-                                    "shape the pedal curve at " +
-                                        "${pedal.columnRpm?.display("%.0f")} rpm"
-                                }
-                            )
-                            intent = ""
-                        },
-                        enabled = pedal.canApply && pedal.editable,
-                    ) { Text("Apply") }
+                ) {
                     PromoOutlinedButton(
                         onClick = viewModel::onPedalDiscard,
                         enabled = pedal.dirty,
+                        modifier = Modifier.weight(1f),
                     ) { Text("Discard") }
                     if (pedal.ghost.isNotEmpty()) {
                         AssistChip(
@@ -225,15 +217,45 @@ fun PedalScreen(viewModel: EditorViewModel) {
                         )
                     }
                 }
+
+                OutlinedTextField(
+                    value = intent,
+                    onValueChange = { intent = it },
+                    label = { Text("Why this change (recorded in the journal)") },
+                    singleLine = false,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                PromoButton(
+                    onClick = {
+                        viewModel.applyPedalDraft(
+                            intent.ifBlank {
+                                "shape the pedal curve at " +
+                                    "${pedal.columnRpm?.display("%.0f")} rpm"
+                            }
+                        )
+                        intent = ""
+                    },
+                    enabled = pedal.canApply && pedal.editable && !state.busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        if (pedal.dirty) {
+                            "Apply ${pedal.columnRpm?.display("%.0f")} rpm curve"
+                        } else {
+                            "No change to apply"
+                        }
+                    )
+                }
             }
         }
     }
 
     editing?.let { index ->
         NumericEntryDialog(
-            title = "Torque factor",
-            supporting = "at ${pedal.pedalAxis.getOrNull(index)?.display("%.0f") ?: "—"}% pedal, " +
-                "${pedal.columnRpm?.display("%.0f") ?: "—"} rpm. 0 to 1.",
+            title = "${pedal.pedalAxis.getOrNull(index)?.display("%.0f") ?: "—"}% pedal at " +
+                "${pedal.columnRpm?.display("%.0f") ?: "—"} rpm",
+            supporting = "Torque factor from 0 to 1.",
             initial = pedal.draft.getOrNull(index)?.display("%.3f") ?: "",
             onDismiss = { editing = null },
             onConfirm = { factor ->
@@ -241,6 +263,135 @@ fun PedalScreen(viewModel: EditorViewModel) {
                 editing = null
             },
         )
+    }
+}
+
+/** The rpm chips are both the curve legend and the active-curve picker. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RpmCurveChips(pedal: PedalUiState, onSelect: (Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Kicker("Engine speed — choose curve to edit", color = PromoPalette.TextFaint)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+        ) {
+            pedal.rpmAxis.forEachIndexed { index, rpm ->
+                val color = pedalCurveColor(index)
+                FilterChip(
+                    selected = index == pedal.column,
+                    onClick = { onSelect(index) },
+                    label = {
+                        Text(
+                            rpm.display("%.0f"),
+                            color = if (index == pedal.column) color else color.copy(alpha = 0.72f),
+                        )
+                    },
+                    colors = promoFilterChipColors(),
+                )
+            }
+        }
+        if (pedal.dirty) {
+            Caption(
+                "${pedal.columnRpm?.display("%.0f")} rpm has an unapplied change. " +
+                    "Apply or discard it before switching curves.",
+                color = PromoPalette.Danger,
+            )
+        }
+    }
+}
+
+/** Pick a pedal breakpoint, choose an increment, and add or subtract it. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PedalBreakpointStepper(
+    pedal: PedalUiState,
+    onStepSelection: (Int) -> Unit,
+    onSelectIncrement: (Double) -> Unit,
+    onNudge: (Int) -> Unit,
+    onType: () -> Unit,
+) {
+    Panel(padding = 12.dp, spacing = 10.dp) {
+        Kicker("Breakpoint", color = PromoPalette.TextFaint)
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            PromoOutlinedButton(onClick = { onStepSelection(-1) }) {
+                Text("◀", style = PromoType.identifier)
+            }
+            PedalBreakpointReadout(
+                pedal = pedal,
+                onType = onType,
+                modifier = Modifier.weight(1f),
+            )
+            PromoOutlinedButton(onClick = { onStepSelection(1) }) {
+                Text("▶", style = PromoType.identifier)
+            }
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+        ) {
+            Kicker("Step", color = PromoPalette.TextFaint)
+            PEDAL_NUDGE_STEPS.forEach { step ->
+                FilterChip(
+                    selected = abs(step - pedal.nudgeStepFactor) < 1e-9,
+                    onClick = { onSelectIncrement(step) },
+                    label = { Text(step.displayExact()) },
+                    colors = promoFilterChipColors(),
+                )
+            }
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            PromoOutlinedButton(
+                onClick = { onNudge(-1) },
+                modifier = Modifier.weight(1f),
+            ) { Text("− ${pedal.nudgeStepFactor.displayExact()}") }
+            PromoOutlinedButton(
+                onClick = { onNudge(1) },
+                modifier = Modifier.weight(1f),
+            ) { Text("+ ${pedal.nudgeStepFactor.displayExact()}") }
+        }
+    }
+}
+
+/** The exact point the stepper will move; tapping opens numeric entry. */
+@Composable
+private fun PedalBreakpointReadout(
+    pedal: PedalUiState,
+    onType: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .clickable(onClickLabel = "Type an exact value", onClick = onType)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            buildAnnotatedString {
+                withStyle(IdentifierSpan) {
+                    append(pedal.selectedPedal?.display("%.0f") ?: "—")
+                }
+                withStyle(SpanStyle(color = PromoPalette.TextFaint)) { append("% pedal") }
+                append("   ")
+                withStyle(SpanStyle(color = pedalCurveColor(pedal.column))) {
+                    append(pedal.selectedFactor?.display("%.3f") ?: "—")
+                }
+                withStyle(SpanStyle(color = PromoPalette.TextFaint)) { append(" factor") }
+            },
+            style = PromoType.identifier,
+        )
+        Caption("Point ${pedal.selectedIndex + 1} of ${pedal.draft.size} · tap to type")
     }
 }
 
@@ -261,16 +412,15 @@ private fun PedalCanvas(
 ) {
     val measurer = rememberTextMeasurer()
     val axis = pedal.pedalAxis
-    val draft = pedal.draft
 
     Canvas(
         modifier = modifier
-            .pointerInput(axis.size) {
+            .pointerInput(axis.size, pedal.column) {
                 detectTapGestures { position ->
                     onTapPoint(nearestPedalIndex(axis, position.x, size.width.toFloat()))
                 }
             }
-            .pointerInput(axis.size) {
+            .pointerInput(axis.size, pedal.column) {
                 // Grabbed at touch-down and held, as on every other canvas here:
                 // re-deriving it per move lets a diagonal drag walk sideways and
                 // reshape a whole run of the curve with one finger.
@@ -291,7 +441,7 @@ private fun PedalCanvas(
         val plotHeight = bottom - 10f
 
         fun px(percent: Double) = left + (percent / 100.0).toFloat() * plotWidth
-        fun py(factor: Double) = bottom - (factor / 1.0).toFloat() * plotHeight
+        fun py(factor: Double) = bottom - factor.toFloat() * plotHeight
 
         // Grid at quarter factors — the steps a person actually reasons in.
         listOf(0.0, 0.25, 0.5, 0.75, 1.0).forEach { factor ->
@@ -332,18 +482,34 @@ private fun PedalCanvas(
         if (ghost.size == axis.size && ghost.isNotEmpty()) {
             drawPedalLine(
                 axis.indices.map { Offset(px(axis[it]), py(ghost[it])) },
-                PromoPalette.TextFaint.copy(alpha = 0.55f),
+                pedalCurveColor(pedal.column).copy(alpha = 0.45f),
                 1.8f,
                 dashed = true,
             )
         }
 
-        if (draft.size == axis.size && draft.isNotEmpty()) {
-            val points = axis.indices.map { Offset(px(axis[it]), py(draft[it])) }
-            drawPedalLine(points, PromoPalette.Accent, 3.5f)
-            points.forEach { point ->
-                drawCircle(PromoPalette.Bg, radius = 6f, center = point)
-                drawCircle(PromoPalette.Accent, radius = 6f, center = point, style = Stroke(width = 2.5f))
+        // Context curves first, active draft last. Every rpm therefore stays
+        // visible without a staged change appearing on any curve but its own.
+        val drawOrder = pedal.rpmAxis.indices.filter { it != pedal.column } + pedal.column
+        drawOrder.forEach { column ->
+            val curve = pedal.curveAt(column)
+            if (curve.size != axis.size || curve.isEmpty()) return@forEach
+            val active = column == pedal.column
+            val color = pedalCurveColor(column)
+            val points = axis.indices.map { Offset(px(axis[it]), py(curve[it])) }
+            drawPedalLine(
+                points,
+                if (active) color else color.copy(alpha = 0.48f),
+                if (active) 3.5f else 1.8f,
+            )
+            if (active) {
+                points.forEachIndexed { index, point ->
+                    if (index == pedal.selectedIndex) {
+                        drawCircle(PromoPalette.Text, radius = 9f, center = point)
+                    }
+                    drawCircle(PromoPalette.Bg, radius = 6f, center = point)
+                    drawCircle(color, radius = 6f, center = point, style = Stroke(width = 2.5f))
+                }
             }
         }
 
@@ -351,6 +517,25 @@ private fun PedalCanvas(
         drawLine(PromoPalette.Rule, Offset(left, bottom), Offset(left + plotWidth, bottom), 1.5f)
     }
 }
+
+/** Stable curve colors shared by the graph and rpm picker. */
+private val PedalCurveColors = listOf(
+    PromoPalette.Accent,
+    PromoPalette.Accent2,
+    PromoPalette.Good,
+    PromoPalette.Warn,
+    PromoPalette.Danger,
+    Color(0xFFB388FF),
+    Color(0xFF00D4C7),
+    Color(0xFFFF7AB6),
+    Color(0xFFA6E22E),
+    Color(0xFFFFA657),
+    Color(0xFF8DA1FF),
+    Color(0xFFD5A6FF),
+)
+
+private fun pedalCurveColor(index: Int): Color =
+    PedalCurveColors[((index % PedalCurveColors.size) + PedalCurveColors.size) % PedalCurveColors.size]
 
 private fun DrawScope.drawPedalLine(
     points: List<Offset>,

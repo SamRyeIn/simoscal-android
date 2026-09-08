@@ -49,6 +49,20 @@ data class TableSummary(
     val ndim: Int,
     val reversible: Boolean,
     val isAxis: Boolean,
+    /**
+     * The domain heading this table is filed under — the browser's grouping.
+     *
+     * Curated on the profile spec engine-side, deliberately **not** the XDF's
+     * own [categories]: those classify by shape as much as by domain, filing
+     * every breakpoint vector under "Axis" and so separating a boost setpoint
+     * from the rpm axis that indexes it. Both are carried — this is what the
+     * browser groups by, [categories] is what the XDF said, and the search
+     * matches either.
+     *
+     * Blank only if an older engine sent no group; [TablesUiState.groups] files
+     * those under [UNGROUPED] rather than dropping them from the list.
+     */
+    val group: String = "",
     val categories: List<String>,
     /**
      * The domain call that owns writes to this table, or empty when the generic
@@ -126,6 +140,7 @@ data class TableSummary(
                 ndim = json.optInt("ndim", 0),
                 reversible = json.optBoolean("reversible", false),
                 isAxis = json.optBoolean("is_axis", false),
+                group = json.optString("group", ""),
                 categories = json.stringList("categories"),
                 owner = json.optString("owner", ""),
                 unitsDescription = json.optString("units_description", ""),
@@ -175,9 +190,53 @@ data class TableEditReceipt(
     val encoded: List<List<Double>>,
 )
 
+/**
+ * The domain headings, in the order the browser lists them.
+ *
+ * Mirrors `simoscal.tune.profile.GROUPS`, which is the authority — the engine
+ * refuses a spec whose group is not in that tuple, so this list can only ever
+ * be *behind* it, never in conflict with it. A group the engine sends that is
+ * missing here still renders: [TablesUiState.groups] appends unknown headings
+ * after these rather than dropping their tables, so an app older than its engine
+ * shows the new section at the bottom instead of hiding calibration.
+ */
+val TABLE_GROUP_ORDER: List<String> = listOf(
+    "Boost",
+    "Timing",
+    "Fueling",
+    "Airflow",
+    "Limiters",
+    "Turbo & thermal",
+    "Pedal & torque request",
+    "Launch & traction",
+)
+
+/**
+ * Heading for tables that arrived with no group at all.
+ *
+ * Only reachable against an engine older than this screen. It is a visible
+ * "nobody filed this" rather than a silent omission: a table missing from the
+ * browser is calibration someone cannot find, which is worse than an ugly
+ * heading.
+ */
+const val UNGROUPED = "Other"
+
+/** One domain heading and the tables filed under it. */
+data class TableGroup(
+    val name: String,
+    val tables: List<TableSummary>,
+    val expanded: Boolean,
+)
+
 data class TablesUiState(
     val catalog: List<TableSummary> = emptyList(),
     val query: String = "",
+    /**
+     * Which headings the user has opened. Empty is the resting state — every
+     * section starts collapsed so the whole map is one screen, and opening one
+     * is a deliberate act rather than something to scroll past.
+     */
+    val expandedGroups: Set<String> = emptySet(),
     val detail: TableDetail? = null,
     val draft: List<List<Double>> = emptyList(),
     val selection: Set<CellRef> = emptySet(),
@@ -186,7 +245,39 @@ data class TablesUiState(
     val notice: String? = null,
 ) {
 
-    /** The catalog narrowed by [query], matched against ID, description, and units. */
+    /**
+     * [visibleCatalog] under its domain headings, in [TABLE_GROUP_ORDER].
+     *
+     * A heading with nothing visible under it is dropped, so a search shows only
+     * the sections that can answer it. Searching also forces every remaining
+     * section open: a query that matched three tables but left them behind
+     * collapsed headings would read as no results at all.
+     */
+    val groups: List<TableGroup>
+        get() {
+            val searching = query.isNotBlank()
+            val byName = visibleCatalog.groupBy { it.group.ifBlank { UNGROUPED } }
+            val known = TABLE_GROUP_ORDER.filter { it in byName }
+            // A heading this app has not heard of sorts after the known ones;
+            // [UNGROUPED] sorts after those, because "nobody filed these" is the
+            // bottom of the list however many real headings are ahead of it.
+            val unknown = byName.keys
+                .filter { it !in TABLE_GROUP_ORDER }
+                .sortedWith(compareBy({ it == UNGROUPED }, { it }))
+            return (known + unknown).map { name ->
+                TableGroup(
+                    name = name,
+                    tables = byName.getValue(name),
+                    expanded = searching || name in expandedGroups,
+                )
+            }
+        }
+
+    /**
+     * The catalog narrowed by [query], matched against the ID, the description,
+     * the logical name, the domain [TableSummary.group], and the XDF's own
+     * categories — the five ways someone might name a table they are looking for.
+     */
     val visibleCatalog: List<TableSummary>
         get() {
             val needle = query.trim().lowercase()
@@ -194,6 +285,7 @@ data class TablesUiState(
             return catalog.filter { summary ->
                 summary.idAndDescription.lowercase().contains(needle) ||
                     summary.name.lowercase().contains(needle) ||
+                    summary.group.lowercase().contains(needle) ||
                     summary.categories.any { it.lowercase().contains(needle) }
             }
         }
@@ -248,6 +340,18 @@ data class TablesUiState(
 
 fun TablesUiState.withCatalog(tables: List<TableSummary>): TablesUiState =
     copy(catalog = tables, loading = false, notice = null)
+
+/**
+ * Open or close one domain heading.
+ *
+ * Purely presentational — which sections are open changes nothing the engine
+ * holds and nothing that reaches a bin. Several may be open at once: comparing
+ * a boost ceiling against a limiter is exactly the sort of thing this browser
+ * is for, and an accordion that closed one to open the other would fight it.
+ */
+fun TablesUiState.togglingGroup(name: String): TablesUiState = copy(
+    expandedGroups = if (name in expandedGroups) expandedGroups - name else expandedGroups + name,
+)
 
 /** Open a table: the draft starts as an exact copy of what the engine holds. */
 fun TablesUiState.withDetail(loaded: TableDetail): TablesUiState = copy(

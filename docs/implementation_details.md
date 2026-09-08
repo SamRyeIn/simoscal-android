@@ -485,6 +485,196 @@ plot with a real fingertip, and the boost-only parity pull on the real SC8S50 bi
 hand-reviewed against a desktop `simoscal` build of the same edit. The
 cross-runtime golden fixtures remain the next byte-critical unit.
 
+### 2026-09-07 — The plot editor for any table, and pinch-zoom that cannot edit
+
+Context: the generic table editor showed every calibration as a grid of numbers.
+A grid is the right surface for reading one cell and the wrong one for reading a
+*shape* — a boost setpoint's knee, a timing curve's rolloff — which is what most
+of these tables are. A plot editor was drafted alongside it (`TablePlot.kt`,
+`TablePlotEditor.kt`) with pinch-zoom and pan, and this entry finishes it.
+
+Decision and rationale:
+
+- **Vector tables plot.** The draft offered a plot only for `ndim == 2`, so 1-D
+  calibrations and every breakpoint axis — the tables a curve view helps *most* —
+  fell back to a row of numbers. `TablePlotModel.directions()` now reads the
+  draft's own shape rather than the summary's `ndim`, and returns the
+  orientations that have length: both for a grid, the long one for a vector, none
+  for a scalar. The draft is what gets plotted, so a shape the plot cannot index
+  has to fail this check whatever the engine called it.
+- **A vector keeps its real breakpoints whichever axis carried them.** The engine
+  files a 1-D table's axis under `x_axis` or `y_axis` depending on how the XDF
+  stored it. When the two dimensions differ in length only one axis can be as
+  long as the plotted one, so the match is unambiguous and the label is used. A
+  *square* table is ambiguous and is never crossed over: a real label on the
+  wrong axis reads as fact, and is worse than an honest "breakpoint index
+  (unavailable)".
+- **A pinch can no longer edit.** This is the safety-relevant half. The draft ran
+  three overlapping gesture detectors and gated the transform one behind a
+  Navigate toggle; in Edit mode a two-finger pinch fell through to
+  `detectDragGestures`, which follows its first pointer — so zooming in to *read*
+  a curve dragged a breakpoint and wrote a value. There is now one
+  `awaitEachGesture` loop, and the escalation is a small state machine,
+  `TablePlotTouch`: it holds the value the touch started on, and the moment a
+  second finger lands it writes that value back and stops editing. Idempotent, so
+  a third finger cannot re-issue an undo over a later edit.
+- **The model is not a gesture key.** `TablePlotModel` is rebuilt on every edit,
+  so keying `pointerInput` on it would have restarted the handler each time a
+  drag moved a point, re-grabbing a fresh breakpoint every frame. Keyed on
+  `model.xAxis` (a value class, stable across edits) and read through
+  `rememberUpdatedState`, so a gesture in flight keeps the values it started with
+  and the *next* gesture starts from current ones.
+- **`TablePlotFrame` holds the plot area.** The gutters were being re-derived in
+  four places from `size` and raw `dp` arithmetic; the renderer and the gesture
+  handler disagreeing about them is how a drag lands on a different breakpoint
+  than the marker it grabbed. One value class now, tested as the exact inverse of
+  the renderer's own y — the same reason `BoostPlot.kt` keeps its coordinate math
+  out of the `ui` package.
+- **Zoom and pan survive rotation**, via a `listSaver` on the viewport. A tablet
+  turned mid-edit that snapped back to the whole table would lose the window
+  someone had lined up on the breakpoints they were working.
+- **The imported bin is ghosted behind the working curve**, dashed, as the pedal
+  and boost curve editors already do; the view is fitted to bracket it so the
+  reference cannot start off frame. Absent when the engine sent no pre-edit
+  buffer (a recovered session), and the caption says so — that is "no ghost to
+  draw", never "unchanged".
+- Direction chips are hidden when only one orientation exists and the curve
+  legend when there is only one curve, so a vector table shows a curve rather
+  than a row of controls that do nothing.
+
+Safety/provenance impact: one path writes calibration and it is unchanged —
+`onCellTyped` → `withTypedCell`, the same validated, never-coerced transition the
+grid uses, so the axis-monotonicity and finite-value refusals apply to a drag
+exactly as to a typed value. The plot is a way of *composing* a proposal; Apply
+still sends one `paste` op and one journal entry. Nothing here touches the bridge
+or the bin. The new safety property is the negative one: a gesture that becomes a
+pinch leaves the calibration exactly as it found it.
+
+Files changed: new `TablePlot.kt` (model, range, frame, touch, viewport),
+`ui/TablePlotEditor.kt`, `TablePlotTest.kt`; modified `ui/TablesScreen.kt` (the
+Grid/Plot editor toggle), `AnalysisModel.kt` (evidence with nested arrays or
+objects is filtered out rather than dumped as raw JSON), this file, and the
+README status table.
+
+Verification: `:engine:testDebugUnitTest` **367 passed, 0 failed** (up from 358;
+`TablePlotTest` 10 → 19, covering vector orientations, the cross-axis label rule
+and its square-table refusal, scalars, the ghost's three states, the frame as the
+renderer's inverse, and the pinch-escalation undo). `:engine:assembleDebug`
+produces a 53.5 MB APK and `:engine:verifyDebugNoPermissions` passes.
+
+Remaining risks or follow-up: **every on-device leg is owed**, and none of it is
+claimed here — the gesture loop is the part JVM tests cannot reach. What needs a
+real fingertip on the Galaxy Tab A9+: a pinch begun as a one-finger drag leaving
+the value untouched (the property `TablePlotTouch` encodes, verified end to end);
+a drag not being stolen by the surrounding vertical scroll; one-finger pan in
+Navigate mode; a vector table rendering as a single curve with its real
+breakpoints; and the viewport surviving a rotation. Carrying forward V7's
+decision not to stand up a Compose test harness, there are still no screenshot
+tests.
+
+### 2026-09-08 — Ready the app for a Play internal-testing release
+
+Context:
+
+The app has had a full Compose UI since V7 and a shipped-quality build since V10,
+but had never been prepared for distribution. Nothing was blocking it technically
+— `bundleRelease` already worked and refused to emit an unsigned artifact — but
+there was no upload key, no store assets, no listing copy, and the `applicationId`
+was still the V0 module name. That last one has a deadline attached: Play binds a
+listing to an application id at first upload and never lets it change, so the
+rename had to happen before an upload, not after.
+
+Decision and rationale:
+
+- **`applicationId` renamed `com.simoscal.engine` → `com.simoscal.app`.** "engine"
+  described the tree when it held nothing but the Chaquopy runtime; it is a poor
+  permanent public identity for an app that is now a calibration editor. The
+  **namespace stays `com.simoscal.engine`**: it names the source, AGP has allowed
+  the two to differ since 7.0, and moving it would rewrite every `package` line
+  and every `import com.simoscal.engine.R` for no user-visible gain. This
+  supersedes the 2026-08-20 note in this file's header, which recorded that the
+  `applicationId` deliberately did not change at the Quick Edit rename — true
+  then, and true right up until the app acquired a reason to care what its public
+  name is.
+- **Store icon and launcher icon are now one drawing.** `store/make_store_graphics.py`
+  holds the artwork as a single `draw_artwork()` function; the 512×512 Play icon,
+  the five legacy mipmap densities, and the adaptive icon's foreground are all
+  rendered from it. Previously the launcher PNGs were hand-exported with no
+  source, so a 512 store icon would have been a lookalike rather than the same
+  mark. The palette is transcribed from `PromoPalette`, like `colors.xml` and the
+  promo video's own config.
+- **An adaptive icon exists at last.** Before this the app shipped only square
+  legacy PNGs, so every launcher on API 26+ — which is every device, `minSdk` is
+  26 — drew the mark shrunk on a generated pale badge. The foreground is inset to
+  the 66/108 guaranteed-visible square over `@color/promo_bg`. **No monochrome
+  layer**: a themed-icon launcher tints that layer flat, and this artwork does not
+  reduce to a silhouette.
+- **The bottom navigation drops its labels on narrow screens.** Ten destinations
+  on a 411 dp phone gave each item ~41 dp, and "Limiters" and "Changes" wrapped
+  mid-word — "Cha / nge / s". Below `items.size * 72` dp the bar is icons only.
+  Nothing is lost: every screen already announces itself in its own header, and
+  the label stays on the icon's `contentDescription`, so TalkBack is unchanged.
+  This was found by taking the phone screenshots the store listing requires, which
+  is the first time anyone had looked hard at this app on a phone.
+
+Safety/provenance impact:
+
+None to the engine, the gates, or the bin math — no Python changed and no gate
+moved. The provenance note that V0 parity was measured against
+`applicationId com.simoscal.engine` stays true and is now marked in the README as
+naming the id of the time.
+
+The store assets are frames of a real session against `Patched_259L_R24.bin`, so
+they show this car's real boost targets and a real journalled edit. That is
+already public in the `gti-tune` repository, but a store listing is a wider
+audience, so `store/captures/` and `store/graphics/screenshots/` are gitignored
+and the decision to publish them is left explicit rather than made by a
+`git add -A`. The keystore lives outside the repo and `keystore.properties` was
+already ignored.
+
+Files changed:
+
+- `engine/build.gradle.kts` — `applicationId`; the stale "compileSdk 33 pairs with
+  AGP 7.4.2" comment corrected to what the code beneath it actually says.
+- `engine/src/main/java/com/simoscal/android/ui/SimoscalApp.kt` — width-dependent
+  nav labels.
+- `engine/src/main/res/mipmap-*/` — regenerated icons, new adaptive icon.
+- `store/` — new: `make_store_graphics.py`, `make_screenshots.py`,
+  `check_listing.py`, `listing.md`, `SUBMISSION.md`, `RELEASE_CHECKLIST.md`,
+  `captures/`, `graphics/`.
+- `README.md`, `docs/play-data-safety.md`, `parity/push_fixtures_and_compare.sh`,
+  three unit-test fixture path strings — application id references.
+
+Verification:
+
+- `./gradlew :engine:check :engine:assembleRelease :engine:bundleRelease` green:
+  367 debug + 367 release unit tests, 0 failures; both permission gates clean on
+  the release variant.
+- `aapt2 dump badging` on the release APK: `com.simoscal.app`, versionCode 1,
+  targetSdk 35, `arm64-v8a` only, one signature-level self-defined permission.
+- `apksigner verify --print-certs` on the APK gives SHA-256 `8c53a7a6…1acc`,
+  matching `keytool -list -v` on the keystore; `jarsigner -verify` on the AAB says
+  `jar verified`.
+- **The minified release build was driven end to end on an arm64 emulator**, which
+  is the leg that catches a missing R8 keep: bin + XDF + switch-patch XDF imported
+  through SAF, preflight passed ("recognised SC8S50 bin with valid checksums"),
+  a boost breakpoint edited and applied to slot 1, and Build produced a verified
+  `R00.bin` with Checksums, Final-bin readback, Blocked writes, and switch-patch
+  sanity all PASSED. Session recovery survived an `adb install -r` over the top.
+- Phone screenshots were retaken after the nav fix and show the icon-only bar.
+
+Remaining risks or follow-up:
+
+- Nothing here has been near a Play Console. The account does not exist yet, so
+  every Console-side claim in `store/SUBMISSION.md` is drawn from Play's published
+  requirements rather than from having filled the forms in.
+- The nav fix has no test. There is still no Compose test harness in this project
+  (V7's decision, unchanged), so the threshold is pinned by nothing but the
+  screenshots that exercised it.
+- The 512 icon and the legacy mipmaps are a *recreation* of the hand-exported
+  original, not a re-export of it. They are visibly the same mark; they are not
+  pixel-identical to what shipped before.
+
 ### Future entry template
 
 ```markdown

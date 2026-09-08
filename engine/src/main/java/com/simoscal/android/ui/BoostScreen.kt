@@ -848,7 +848,11 @@ private fun OverlayCard(
                 overlay.logName?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = PromoPalette.TextFaint)
                 }
-                PullChooser(overlay = overlay, onSelectPull = onSelectPull)
+                PullChooser(
+                    overlay = overlay,
+                    onSelectPull = onSelectPull,
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                )
                 Text(
                     "Solid is what the turbo delivered; dashed is what the ECU asked for.",
                     style = MaterialTheme.typography.bodySmall,
@@ -905,10 +909,18 @@ private fun OverlayStrip(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PullChooser(overlay: OverlayUiState, onSelectPull: (Int) -> Unit) {
+private fun PullChooser(
+    overlay: OverlayUiState,
+    onSelectPull: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Whether the chips scroll is the caller's to say, not this row's. Upright
+    // they sit in a card that does not scroll and so must scroll themselves;
+    // sideways they sit inside [OverlayStrip], which already scrolls, and a
+    // second scroller in the same direction is one Compose refuses to measure.
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        modifier = modifier,
     ) {
         overlay.choosablePulls.forEach { pull ->
             FilterChip(

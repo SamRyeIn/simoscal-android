@@ -25,6 +25,39 @@ class BoostPlotGeometry(canvasWidth: Float, canvasHeight: Float) {
     val bottom: Float get() = top + height
 }
 
+/** The vertical step that keeps two converging slot labels legible. */
+private const val SLOT_LABEL_GAP = 26f
+
+/** Roughly one line of the 11sp label face — the room a label needs below its y. */
+private const val SLOT_LABEL_LINE = 14f
+
+/**
+ * Where each slot's right-hand label is drawn, nudged apart where curves converge.
+ *
+ * Pure, and deliberately not inlined into the drawing, because the nudge can run
+ * off the bottom of the canvas: a short plot clamps [BoostPlotGeometry.height] to
+ * its 1px floor, every curve then ends at the same y, and a fixed [SLOT_LABEL_GAP]
+ * step marches the ladder down past the edge. Text there measures against a
+ * negative height and throws rather than clipping, so a label that will not fit is
+ * dropped here and the drawing code never asks for it.
+ *
+ * [ends] is (slot, the y its curve ends at); the result is (slot, the y to draw at)
+ * for the labels that fit, in ladder order.
+ */
+fun slotLabelLadder(ends: List<Pair<Int, Float>>, canvasHeight: Float): List<Pair<Int, Float>> {
+    val lowest = canvasHeight - SLOT_LABEL_LINE
+    val placed = mutableListOf<Pair<Int, Float>>()
+    var previousY = Float.NEGATIVE_INFINITY
+    for ((slot, endY) in ends.sortedBy { it.second }) {
+        val y = max(endY - 8f, previousY + SLOT_LABEL_GAP)
+        // Sorted ascending, so once the ladder is off the canvas it stays off.
+        if (y > lowest) break
+        previousY = y
+        placed += slot to y
+    }
+    return placed
+}
+
 /**
  * Value ↔ pixel mapping for the plot.
  *

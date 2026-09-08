@@ -85,8 +85,8 @@ case "${1:-}" in
     # The test writes to targetContext's external files dir. On an application
     # module that is the app package; on a self-instrumenting library it is the
     # .test package. Try both so this works regardless.
-    "$ADB" pull /sdcard/Android/data/com.simoscal.engine/files/v0_device_report.json "$OUT" 2>/dev/null \
-      || "$ADB" pull /sdcard/Android/data/com.simoscal.engine.test/files/v0_device_report.json "$OUT"
+    "$ADB" pull /sdcard/Android/data/com.simoscal.app/files/v0_device_report.json "$OUT" 2>/dev/null \
+      || "$ADB" pull /sdcard/Android/data/com.simoscal.app.test/files/v0_device_report.json "$OUT"
     echo "pulled: $OUT"
     # Fail loudly if the device half skipped a leg — `compare` alone would report
     # a match when the host skipped the same one.

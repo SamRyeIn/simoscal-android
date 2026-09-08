@@ -83,6 +83,17 @@ class PedalUiStateTest {
     }
 
     @Test
+    fun `the graph exposes every rpm curve and stages only the active one`() {
+        val state = loaded().selectingColumn(2).withDraggedPoint(5, 0.42)
+
+        assertEquals(rpmAxis.size, rpmAxis.indices.map(state::curveAt).size)
+        assertEquals(0.42, state.curveAt(2)[5], 1e-9)
+        rpmAxis.indices.filter { it != 2 }.forEach { column ->
+            assertEquals(grid().map { it[column] }, state.curveAt(column))
+        }
+    }
+
+    @Test
     fun `a dragged point edits exactly one cell`() {
         // The screen's Apply composes the full grid from the draft; this is that
         // composition, and it must touch one cell only.
@@ -113,6 +124,43 @@ class PedalUiStateTest {
         assertEquals(1.0, state.withDraggedPoint(0, 3.0).draft[0], 1e-9)
         assertEquals(0.0, state.withDraggedPoint(0, -2.0).draft[0], 1e-9)
         assertEquals(0.123, state.withDraggedPoint(0, 0.12345).draft[0], 1e-9)
+    }
+
+    @Test
+    fun `dragging also selects the point used by the exact controls`() {
+        val state = loaded().withDraggedPoint(7, 0.42)
+        assertEquals(7, state.selectedIndex)
+        assertEquals(60.0, state.selectedPedal!!, 1e-9)
+        assertEquals(0.42, state.selectedFactor!!, 1e-9)
+    }
+
+    @Test
+    fun `the selected breakpoint wraps and nudges by the chosen increment`() {
+        val state = loaded()
+            .selectingPoint(4)
+            .withNudgeStep(0.05)
+            .nudgingSelection(1)
+
+        assertEquals(grid()[4][0] + 0.05, state.draft[4], 1e-9)
+        assertEquals(4, state.selectedIndex)
+        assertEquals(pedalAxis.lastIndex, loaded().steppingSelection(-1).selectedIndex)
+        assertEquals(0, loaded().selectingPoint(pedalAxis.lastIndex).steppingSelection(1).selectedIndex)
+    }
+
+    @Test
+    fun `a nudge outside the legal factor range is refused rather than clamped`() {
+        val top = loaded(values = grid().mapIndexed { row, cells ->
+            if (row == 3) cells.map { 1.0 } else cells
+        }).selectingPoint(3).nudgingSelection(1)
+
+        assertEquals(1.0, top.draft[3], 1e-9)
+        assertNotNull(top.notice)
+    }
+
+    @Test
+    fun `unknown nudge increments do not replace the offered selection`() {
+        val state = loaded().withNudgeStep(0.123)
+        assertEquals(DEFAULT_PEDAL_NUDGE_STEP, state.nudgeStepFactor, 1e-9)
     }
 
     // ------------------------------------------------------------- the ghost

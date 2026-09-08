@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
@@ -36,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -164,10 +166,24 @@ fun SimoscalApp(viewModel: EditorViewModel, analysisViewModel: AnalysisViewModel
             if (state.sessionOpen) {
                 val backStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = backStackEntry?.destination?.hierarchy?.firstOrNull()?.route
+                val items = destinationItems()
+                // Ten destinations do not fit a phone-width bar with labels: at
+                // 411 dp Material3 gives each item ~41 dp, and "Limiters" and
+                // "Changes" wrap to two lines mid-word ("Cha / nge / s"). Below
+                // the width where every label fits on one line, the bar drops to
+                // icons only. Nothing is lost — every screen already announces
+                // itself in its own header — and the label stays on the icon's
+                // contentDescription, so TalkBack reads exactly what it read
+                // before.
+                //
+                // 72 dp per item is Material3's own comfortable minimum for a
+                // labelled item; the app clears it on a tablet (1280 dp on the
+                // Galaxy Tab A9+) and does not on any phone.
+                val labelled = LocalConfiguration.current.screenWidthDp >= items.size * 72
                 Column {
                     HairRule()
                     NavigationBar(containerColor = PromoPalette.BgAlt) {
-                        destinationItems().forEach { item ->
+                        items.forEach { item ->
                             NavigationBarItem(
                                 selected = currentRoute == item.route,
                                 // A null destination is not gated on a session — see
@@ -183,7 +199,7 @@ fun SimoscalApp(viewModel: EditorViewModel, analysisViewModel: AnalysisViewModel
                                     }
                                 },
                                 icon = { Icon(item.icon, contentDescription = item.label) },
-                                label = { Text(item.label) },
+                                label = if (labelled) ({ Text(item.label) }) else null,
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = PromoPalette.Accent,
                                     selectedTextColor = PromoPalette.Accent,
@@ -253,6 +269,25 @@ fun SimoscalApp(viewModel: EditorViewModel, analysisViewModel: AnalysisViewModel
                 composable("slots") { SlotsScreen(viewModel = viewModel) }
                 composable("changes") { ChangesScreen(viewModel = viewModel) }
                 composable("build") { BuildScreen(viewModel = viewModel) }
+                composable("advice") {
+                    AdviceScreen(
+                        viewModel = viewModel,
+                        // Show-me is a normal navigation, not a special one:
+                        // it goes through the same graph the nav bar uses, so
+                        // the back stack behaves the way it does everywhere
+                        // else and the accepted item is picked up by that
+                        // screen's own load, not by anything routed here.
+                        onShowMe = { destination ->
+                            navController.navigate(routeFor(destination)) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                    )
+                }
             }
         }
     }
@@ -315,12 +350,21 @@ private fun destinationItems(): List<DestinationItem> = listOf(
     // put the unverified list on the far side of the gate that verifies it.
     DestinationItem(Destination.CHANGES, "changes", "Changes", Icons.Filled.Edit),
     DestinationItem(Destination.BUILD, "build", "Build", Icons.Filled.Build),
+    // After Build, because that is where a reply is imported: the review
+    // queue only ever has something in it once the Build screen has put it
+    // there, and a tab that is empty until you have visited the one before
+    // it belongs after that one.
+    DestinationItem(Destination.ADVICE, "advice", "Review", Icons.Filled.Check),
     // Last, and always enabled. It reads datalogs from the *previous* flash, so
     // it sits after the gate rather than inside the edit → verify run: it is
     // where a person goes to find out whether the last bin actually worked,
     // which is the question that starts the next revision.
     DestinationItem(null, "analyze", "Analyze", Icons.Filled.Info),
 )
+
+/** The route each workspace destination lives at — the nav bar's own table. */
+private fun routeFor(destination: Destination): String =
+    destinationItems().first { it.destination == destination }.route
 
 /**
  * The non-dismissible dead end for a bin that cannot be safely edited.
