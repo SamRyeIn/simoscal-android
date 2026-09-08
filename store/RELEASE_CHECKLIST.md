@@ -2,7 +2,9 @@
 
 Every line is either **DONE** with the evidence that proves it, or **SAM** with
 the exact steps. Nothing is left unclassified: an item nobody owns is an item
-that does not happen.
+that does not happen. One line (19) is **SAM — blocked on Google**, which is a
+third thing again: owned, but not startable, and the Console items behind it
+are stalled until it clears.
 
 Prepared 2026-09-08 for the first upload of `com.simoscal.app` 0.1.0 (1).
 
@@ -54,7 +56,7 @@ cd ~/simoscal-android
 
 | # | Item | Owner | Evidence / steps |
 | - | ---- | ----- | ---------------- |
-| 19 | Play Console developer account | **DONE** | Sam confirmed the account exists, 2026-09-08. Everything below is now unblocked |
+| 19 | Play Console developer account | **SAM — blocked on Google** | The account exists: **simoscal tuning**, personal, ID `7857264998731009754`, on `simoscal.tuning@gmail.com` (not `samryan1021@`, which Console sends to signup). But it is **not verified**, so `Create app` is greyed out behind "Complete account verifications to create new apps", and items 20-32 cannot start. Two tasks outstanding, in this order and no other: Google is reviewing the uploaded identity documents ("may take a few days"), and only once they are approved does the contact-phone verification unlock. Nothing here is actionable by anyone until Google finishes — checked in the Console on 2026-09-08 |
 | 20 | Create the app | **SAM** | `store/SUBMISSION.md` §1 |
 | 21 | App content declarations | **SAM** | `store/SUBMISSION.md` §2 — every question with its answer |
 | 22 | Content rating questionnaire | **SAM** | `store/SUBMISSION.md` §3. Expect Everyone / PEGI 3 |
