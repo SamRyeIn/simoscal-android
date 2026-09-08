@@ -12,7 +12,7 @@ import org.junit.Test
 class AdviceUiStateTest {
 
     private fun file(hash: String, name: String = "$hash.json") = ImportedFile(
-        path = "/data/user/0/com.simoscal.engine/files/imports/$hash.advice.json",
+        path = "/data/user/0/com.simoscal.app/files/imports/$hash.advice.json",
         sha256 = hash,
         displayName = name,
         sizeBytes = 2048,

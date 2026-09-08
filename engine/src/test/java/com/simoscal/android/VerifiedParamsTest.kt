@@ -28,7 +28,7 @@ import org.junit.Test
 class VerifiedParamsTest {
 
     private val file = ImportedFile(
-        path = "/data/user/0/com.simoscal.engine/files/imports/abc123.bin",
+        path = "/data/user/0/com.simoscal.app/files/imports/abc123.bin",
         sha256 = "d61a6e297b3ac1d25f60ec8cb3bb504ff47f2db603a960a56e6a6e34074ad69b",
         displayName = "5G0906259L__0002.bin",
         sizeBytes = 4_194_304,

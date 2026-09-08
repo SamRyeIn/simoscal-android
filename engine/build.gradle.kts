@@ -58,14 +58,39 @@ val releaseSigningMaterial: Map<String, String>? =
     }
 
 android {
+    // The Kotlin/R package. It stays `com.simoscal.engine` on purpose even though
+    // the applicationId below no longer matches: the namespace names the *source*,
+    // and moving it would rewrite every `package` line and every `import
+    // com.simoscal.engine.R` for no user-visible gain. AGP has allowed the two to
+    // differ since 7.0, and this build already relies on that — UI code has lived
+    // in `com.simoscal.android` since V7.
     namespace = "com.simoscal.engine"
-    // compileSdk 33 pairs with AGP 7.4.2 (see the root build for why the tooling
-    // is pinned pre-8.0). It only governs the build; the runtime under test is
-    // Python 3.13 + numpy, fixed by the Chaquopy version. minSdk 26 unchanged.
+    // compileSdk 35 pairs with AGP 8.1.4 (see the root build for why the tooling
+    // is pinned there, and why 35 rather than 33). It only governs the build; the
+    // runtime under test is Python 3.13 + numpy, fixed by the Chaquopy version.
+    // minSdk 26 unchanged.
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.simoscal.engine"
+        // The public, permanent package name. Play binds a listing to this id for
+        // the life of the app: it cannot be changed after the first upload, and a
+        // different id is a different app with a different store URL and no
+        // upgrade path for anyone already installed.
+        //
+        // Renamed from `com.simoscal.engine` on 2026-09-08, before the first Play
+        // upload and therefore while renaming was still free. "engine" was the V0
+        // gate's module name — accurate when the tree held nothing but the
+        // Chaquopy runtime, and wrong as a product identity now that the app is a
+        // full Compose editor. Prose that records V0-era evidence still names the
+        // old id; that is provenance, and is marked as such where it appears.
+        //
+        // Consequences already handled: the FileProvider authority is templated
+        // off `${applicationId}`, the permission gate derives its one allowed
+        // entry the same way, and the instrumentation package moves with it to
+        // `com.simoscal.app.test` (see README and parity/push_fixtures_and_compare.sh).
+        // An installed `com.simoscal.engine` build is a *separate* package: it is
+        // not upgraded by this one and must be uninstalled by hand.
+        applicationId = "com.simoscal.app"
         minSdk = 26
         targetSdk = 35
         // versionCode must increase with every Play upload and never repeat.

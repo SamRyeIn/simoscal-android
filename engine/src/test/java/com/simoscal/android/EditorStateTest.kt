@@ -16,7 +16,7 @@ import org.junit.Test
 class EditorStateTest {
 
     private fun file(name: String, hash: String) = ImportedFile(
-        path = "/data/user/0/com.simoscal.engine/files/imports/$hash.bin",
+        path = "/data/user/0/com.simoscal.app/files/imports/$hash.bin",
         sha256 = hash,
         displayName = name,
         sizeBytes = 4 * 1024 * 1024,
@@ -28,7 +28,7 @@ class EditorStateTest {
 
     private val verified = BuildState.Verified(
         revision = "R00",
-        sharePath = "/data/user/0/com.simoscal.engine/files/staging/candidate.bin",
+        sharePath = "/data/user/0/com.simoscal.app/files/staging/candidate.bin",
         binName = "candidate.bin",
         changedTables = listOf("IP_PUT_SP — Pressure up throttle setpoint"),
         gates = listOf(GateResult("checksums", passed = true, ran = true, detail = "")),

@@ -44,7 +44,7 @@ it. That is the trigger to revisit this file.
    $ cat engine/build/reports/permissions/release.txt
    merged manifest: AndroidManifest.xml
    unexpected permissions: none
-   allowed: com.simoscal.engine.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+   allowed: com.simoscal.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
    ```
 
    The single allowed entry is defined by the app for itself by AndroidX Core to
