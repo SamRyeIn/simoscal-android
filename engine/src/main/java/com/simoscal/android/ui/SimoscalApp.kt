@@ -37,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -165,10 +166,24 @@ fun SimoscalApp(viewModel: EditorViewModel, analysisViewModel: AnalysisViewModel
             if (state.sessionOpen) {
                 val backStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = backStackEntry?.destination?.hierarchy?.firstOrNull()?.route
+                val items = destinationItems()
+                // Ten destinations do not fit a phone-width bar with labels: at
+                // 411 dp Material3 gives each item ~41 dp, and "Limiters" and
+                // "Changes" wrap to two lines mid-word ("Cha / nge / s"). Below
+                // the width where every label fits on one line, the bar drops to
+                // icons only. Nothing is lost — every screen already announces
+                // itself in its own header — and the label stays on the icon's
+                // contentDescription, so TalkBack reads exactly what it read
+                // before.
+                //
+                // 72 dp per item is Material3's own comfortable minimum for a
+                // labelled item; the app clears it on a tablet (1280 dp on the
+                // Galaxy Tab A9+) and does not on any phone.
+                val labelled = LocalConfiguration.current.screenWidthDp >= items.size * 72
                 Column {
                     HairRule()
                     NavigationBar(containerColor = PromoPalette.BgAlt) {
-                        destinationItems().forEach { item ->
+                        items.forEach { item ->
                             NavigationBarItem(
                                 selected = currentRoute == item.route,
                                 // A null destination is not gated on a session — see
@@ -184,7 +199,7 @@ fun SimoscalApp(viewModel: EditorViewModel, analysisViewModel: AnalysisViewModel
                                     }
                                 },
                                 icon = { Icon(item.icon, contentDescription = item.label) },
-                                label = { Text(item.label) },
+                                label = if (labelled) ({ Text(item.label) }) else null,
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = PromoPalette.Accent,
                                     selectedTextColor = PromoPalette.Accent,
